@@ -1,5 +1,7 @@
+'use client';
+
 import React from 'react';
-import * as THREE from 'three';
+import { type ThreeElements } from '@react-three/fiber';
 
 interface DynamicCabinetProps {
     width: number;
@@ -7,6 +9,12 @@ interface DynamicCabinetProps {
     depth: number;
     materialColor?: string;
     isXray?: boolean;
+}
+
+declare global {
+    namespace JSX {
+        interface IntrinsicElements extends ThreeElements { }
+    }
 }
 
 export const DynamicCabinet: React.FC<DynamicCabinetProps> = ({
@@ -33,35 +41,17 @@ export const DynamicCabinet: React.FC<DynamicCabinetProps> = ({
                     wireframe={isXray}
                 />
 
-                {/* X-RAY / INDUSTRIAL VIEW - DRILLING PATTERNS */}
+                {/* X-RAY drilling visualization */}
                 {isXray && (
-                    <group>
-                        {/* Visualize System 32 Connection Holes */}
-                        {[[-0.45, 0.45], [0.45, 0.45], [-0.45, -0.45], [0.45, -0.45]].map((pos, i) => (
+                    <>
+                        {([[-0.45, 0.45], [0.45, 0.45], [-0.45, -0.45], [0.45, -0.45]] as [number, number][]).map((pos, i) => (
                             <mesh key={i} position={[pos[0], pos[1], 0.49]}>
                                 <sphereGeometry args={[0.015, 16, 16]} />
                                 <meshBasicMaterial color="#3b82f6" />
                             </mesh>
                         ))}
-
-                        {/* Center Label Marker */}
-                        <mesh position={[0, 0, 0]}>
-                            <sphereGeometry args={[0.02]} />
-                            <meshBasicMaterial color="red" />
-                        </mesh>
-                    </group>
+                    </>
                 )}
-
-                {/* FIXED HARDWARE - HANDLES */}
-                <group name="fixed_components">
-                    <mesh
-                        position={[0, 0, 0.51]}
-                        scale={[1 / w, 1 / h, 1 / d]}
-                    >
-                        <boxGeometry args={[0.4, 0.02, 0.03]} />
-                        <meshStandardMaterial color="#888" metalness={1} roughness={0} />
-                    </mesh>
-                </group>
             </mesh>
         </group>
     );
