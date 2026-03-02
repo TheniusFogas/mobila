@@ -1,9 +1,34 @@
 'use client';
 
-import React from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment, Grid } from '@react-three/drei';
+import React, { useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { Canvas, useThree } from '@react-three/fiber';
+import { OrbitControls, Grid } from '@react-three/drei';
 import { DynamicCabinet } from './DynamicCabinet';
+
+// Imperative scene setup — no lowercase JSX, no TypeScript conflicts
+function SceneSetup() {
+    const { scene } = useThree();
+
+    useEffect(() => {
+        const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+        const directional = new THREE.DirectionalLight(0xffffff, 1);
+        directional.position.set(5, 10, 5);
+        directional.castShadow = true;
+        const spot = new THREE.SpotLight(0xffffff, 0.5, 0, 0.3, 1);
+        spot.position.set(-5, 8, 3);
+
+        scene.add(ambient, directional, spot);
+        scene.background = new THREE.Color('#000000');
+        scene.fog = new THREE.FogExp2('#000000', 0.025);
+
+        return () => {
+            scene.remove(ambient, directional, spot);
+        };
+    }, [scene]);
+
+    return null;
+}
 
 interface ThreeViewerProps {
     width: number;
@@ -16,12 +41,7 @@ export default function ThreeViewer({ width, height, depth, isXray }: ThreeViewe
     return (
         <div className="absolute inset-0">
             <Canvas shadows gl={{ antialias: true }}>
-                <PerspectiveCamera makeDefault position={[2.5, 1.8, 2.5]} fov={40} />
-
-                {/* Scene */}
-                <ambientLight intensity={0.3} />
-                <directionalLight position={[5, 10, 5]} intensity={1} castShadow />
-                <spotLight position={[-5, 8, 3]} intensity={0.5} angle={0.3} penumbra={1} />
+                <SceneSetup />
 
                 <DynamicCabinet
                     width={width}
@@ -39,8 +59,12 @@ export default function ThreeViewer({ width, height, depth, isXray }: ThreeViewe
                     maxDistance={8}
                 />
 
-                <Environment preset="studio" />
-                <Grid args={[10, 10]} position={[0, -0.001, 0]} cellColor="#111" sectionColor="#222" />
+                <Grid
+                    args={[10, 10]}
+                    position={[0, -0.001, 0]}
+                    cellColor="#111"
+                    sectionColor="#222"
+                />
             </Canvas>
         </div>
     );
