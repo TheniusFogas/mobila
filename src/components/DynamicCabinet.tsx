@@ -1,71 +1,65 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import * as THREE from 'three';
-import { applyInverseScaling } from '@/lib/engine/scaling';
 
 interface DynamicCabinetProps {
-    width: number;  // in mm
-    height: number; // in mm
-    depth: number;  // in mm
+    width: number;
+    height: number;
+    depth: number;
     materialColor?: string;
+    isXray?: boolean;
 }
 
-/**
- * ARCH 1: Core Parametric Engine - DynamicCabinet
- * This is the base component that renders a cabinet and applies 
- * industrial scaling rules in real-time.
- */
 export const DynamicCabinet: React.FC<DynamicCabinetProps> = ({
     width = 600,
     height = 800,
     depth = 450,
-    materialColor = '#555',
+    materialColor = '#222',
+    isXray = false
 }) => {
-    // Convert mm to Three.js units (1 unit = 1 meter)
     const w = width / 1000;
     const h = height / 1000;
     const d = depth / 1000;
 
-    // Base dimensions of the original model (default 1x1x1m for now)
-    const baseSize = { x: 1, y: 1, z: 1 };
-
     return (
         <group>
-            {/* 
-        MAIN BODY 
-        In a real scenario, this would be a loaded GLTF model.
-        For now, we mock the mesh with sub-components to demonstrate Inverse Scaling.
-      */}
-            <mesh
-                castShadow
-                receiveShadow
-                scale={[w, h, d]}
-            >
+            <mesh castShadow receiveShadow scale={[w, h, d]}>
                 <boxGeometry args={[1, 1, 1]} />
-                <meshStandardMaterial color={materialColor} roughness={0.2} metalness={0.1} />
+                <meshStandardMaterial
+                    color={materialColor}
+                    roughness={0.1}
+                    metalness={0.05}
+                    transparent={isXray}
+                    opacity={isXray ? 0.2 : 1}
+                    wireframe={isXray}
+                />
 
-                {/* 
-          FIXED COMPONENTS (e.g. Rounded Corners, Handles)
-          The '_fixed' suffix triggers our inverse scaling logic.
-        */}
+                {/* X-RAY / INDUSTRIAL VIEW - DRILLING PATTERNS */}
+                {isXray && (
+                    <group>
+                        {/* Visualize System 32 Connection Holes */}
+                        {[[-0.45, 0.45], [0.45, 0.45], [-0.45, -0.45], [0.45, -0.45]].map((pos, i) => (
+                            <mesh key={i} position={[pos[0], pos[1], 0.49]}>
+                                <sphereGeometry args={[0.015, 16, 16]} />
+                                <meshBasicMaterial color="#3b82f6" />
+                            </mesh>
+                        ))}
+
+                        {/* Center Label Marker */}
+                        <mesh position={[0, 0, 0]}>
+                            <sphereGeometry args={[0.02]} />
+                            <meshBasicMaterial color="red" />
+                        </mesh>
+                    </group>
+                )}
+
+                {/* FIXED HARDWARE - HANDLES */}
                 <group name="fixed_components">
-                    {/* Mocked handle that shouldn't stretch when the cabinet grows */}
                     <mesh
-                        name="handle_fixed"
-                        position={[0.5, 0, 0.51]}
-                        scale={[1 / w, 1 / h, 1 / d]} // Applied Inverse Scaling
+                        position={[0, 0, 0.51]}
+                        scale={[1 / w, 1 / h, 1 / d]}
                     >
-                        <boxGeometry args={[0.02, 0.2, 0.02]} />
+                        <boxGeometry args={[0.4, 0.02, 0.03]} />
                         <meshStandardMaterial color="#888" metalness={1} roughness={0} />
-                    </mesh>
-
-                    {/* Mocked Decorative Bevel/Fixed Edge */}
-                    <mesh
-                        name="edge_fixed"
-                        position={[0, 0.5, 0]}
-                        scale={[1, 0.01 / h, 1]} // Only Y is inversely scaled to keep thickness fixed
-                    >
-                        <boxGeometry args={[1, 1, 1]} />
-                        <meshStandardMaterial color="#333" />
                     </mesh>
                 </group>
             </mesh>
