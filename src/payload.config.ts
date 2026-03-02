@@ -4,6 +4,7 @@ import { postgresAdapter } from '@payloadcms/db-postgres';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import { Materials } from './collections/Materials';
 import { Hardware } from './collections/Hardware';
+import { Orders } from './collections/Orders';
 import { Models } from './collections/Models';
 import { Media } from './collections/Media';
 import { fileURLToPath } from 'url';
@@ -21,6 +22,7 @@ export default buildConfig({
     collections: [
         Materials,
         Hardware,
+        Orders,
         Models,
         Media,
         {

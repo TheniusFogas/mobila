@@ -5,38 +5,71 @@ import * as THREE from 'three';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, ContactShadows, Environment } from '@react-three/drei';
 
+/* ===== Human Silhouette (1750mm average) ===== */
+function HumanSilhouette() {
+    const groupRef = useRef<THREE.Group>(null);
+    // Simple blocky human silhouette using box meshes
+    const mat = new THREE.MeshBasicMaterial({ color: '#D0C8BC', transparent: true, opacity: 0.6 });
+    // Placed to the left of center
+    const x = -1.1;
+    return (
+        <group position={[x, 0, 0.2]}>
+            {/* Body trunk */}
+            <mesh position={[0, 0.65, 0]} material={mat}>
+                <boxGeometry args={[0.24, 0.52, 0.12]} />
+            </mesh>
+            {/* Head */}
+            <mesh position={[0, 1.05, 0]} material={mat}>
+                <boxGeometry args={[0.17, 0.2, 0.14]} />
+            </mesh>
+            {/* Left leg */}
+            <mesh position={[-0.07, 0.22, 0]} material={mat}>
+                <boxGeometry args={[0.1, 0.44, 0.12]} />
+            </mesh>
+            {/* Right leg */}
+            <mesh position={[0.07, 0.22, 0]} material={mat}>
+                <boxGeometry args={[0.1, 0.44, 0.12]} />
+            </mesh>
+            {/* Left arm */}
+            <mesh position={[-0.17, 0.66, 0]} material={mat}>
+                <boxGeometry args={[0.07, 0.4, 0.1]} />
+            </mesh>
+            {/* Right arm */}
+            <mesh position={[0.17, 0.66, 0]} material={mat}>
+                <boxGeometry args={[0.07, 0.4, 0.1]} />
+            </mesh>
+        </group>
+    );
+}
+
+/* ===== GLB Cabinet Model ===== */
 interface ModelProps {
     url: string;
     materialColor: string;
     roughness: number;
     metalness: number;
-    dimensionScale: { x: number; y: number; z: number };
+    scaleX: number;
+    scaleY: number;
+    scaleZ: number;
 }
 
-function CabinetModel({ url, materialColor, roughness, metalness, dimensionScale }: ModelProps) {
+function CabinetModel({ url, materialColor, roughness, metalness, scaleX, scaleY, scaleZ }: ModelProps) {
     const { scene } = useGLTF(url);
+    const color = new THREE.Color(materialColor);
     const groupRef = useRef<THREE.Group>(null);
 
     useEffect(() => {
-        if (!scene) return;
-        const color = new THREE.Color(materialColor);
         scene.traverse((child) => {
             if (child instanceof THREE.Mesh) {
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(mat => {
-                        if (mat instanceof THREE.MeshStandardMaterial) {
-                            mat.color.set(color);
-                            mat.roughness = roughness;
-                            mat.metalness = metalness;
-                            mat.needsUpdate = true;
-                        }
-                    });
-                } else if (child.material instanceof THREE.MeshStandardMaterial) {
-                    child.material.color.set(color);
-                    child.material.roughness = roughness;
-                    child.material.metalness = metalness;
-                    child.material.needsUpdate = true;
-                }
+                const applyMat = (mat: THREE.Material) => {
+                    if (mat instanceof THREE.MeshStandardMaterial) {
+                        mat.color.set(color);
+                        mat.roughness = roughness;
+                        mat.metalness = metalness;
+                        mat.needsUpdate = true;
+                    }
+                };
+                Array.isArray(child.material) ? child.material.forEach(applyMat) : applyMat(child.material);
                 child.castShadow = true;
                 child.receiveShadow = true;
             }
@@ -44,16 +77,12 @@ function CabinetModel({ url, materialColor, roughness, metalness, dimensionScale
     }, [scene, materialColor, roughness, metalness]);
 
     useEffect(() => {
-        if (!groupRef.current) return;
-        groupRef.current.scale.set(
-            dimensionScale.x,
-            dimensionScale.y,
-            dimensionScale.z
-        );
-    }, [dimensionScale]);
+        if (groupRef.current) {
+            groupRef.current.scale.set(scaleX, scaleY, scaleZ);
+        }
+    }, [scaleX, scaleY, scaleZ]);
 
     const cloned = React.useMemo(() => scene.clone(), [scene]);
-
     return (
         <group ref={groupRef as React.RefObject<THREE.Group | null>}>
             <primitive object={cloned} />
@@ -61,19 +90,25 @@ function CabinetModel({ url, materialColor, roughness, metalness, dimensionScale
     );
 }
 
+/* ===== Scene Setup ===== */
 function SceneSetup() {
     const { scene } = useThree();
     useEffect(() => {
-        scene.background = new THREE.Color('#F7F5F2');
-        scene.fog = new THREE.Fog('#F7F5F2', 8, 20);
-        const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-        const key = new THREE.DirectionalLight(0xffffff, 1.2);
-        key.position.set(3, 6, 4);
+        scene.background = new THREE.Color('#EAE6DF');
+        const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+        const key = new THREE.DirectionalLight(0xfff8f0, 1.4);
+        key.position.set(2, 5, 4);
         key.castShadow = true;
-        const fill = new THREE.DirectionalLight(0xfff8f0, 0.4);
+        key.shadow.mapSize.width = 1024;
+        key.shadow.mapSize.height = 1024;
+        key.shadow.camera.near = 0.5;
+        key.shadow.camera.far = 20;
+        const fill = new THREE.DirectionalLight(0xf0f4ff, 0.4);
         fill.position.set(-3, 2, -2);
-        scene.add(ambient, key, fill);
-        return () => { scene.remove(ambient, key, fill); };
+        const rim = new THREE.DirectionalLight(0xffffff, 0.2);
+        rim.position.set(0, -1, -4);
+        scene.add(ambient, key, fill, rim);
+        return () => { scene.remove(ambient, key, fill, rim); };
     }, [scene]);
     return null;
 }
@@ -87,44 +122,55 @@ interface ThreeViewerProps {
     depth: number;
 }
 
-export default function ThreeViewer({ materialColor, roughness, metalness, width, height, depth }: ThreeViewerProps) {
-    // Base dimensions of the model (defaults from seed)
-    const BASE = { w: 900, h: 2100, d: 600 };
-    const dimensionScale = {
-        x: width / BASE.w,
-        y: height / BASE.h,
-        z: depth / BASE.d,
-    };
+const BASE = { w: 900, h: 2100, d: 600 };
+
+export default function ThreeViewer(props: ThreeViewerProps) {
+    const { materialColor, roughness, metalness, width, height, depth } = props;
+    const scaleX = width / BASE.w;
+    const scaleY = height / BASE.h;
+    const scaleZ = depth / BASE.d;
 
     return (
         <Canvas
             shadows
-            camera={{ position: [2.5, 1.8, 3.5], fov: 35 }}
-            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+            camera={{ position: [2.2, 1.4, 3.8], fov: 32 }}
+            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
             style={{ width: '100%', height: '100%' }}
         >
             <SceneSetup />
+
             <CabinetModel
                 url="/models/dulap.glb"
                 materialColor={materialColor}
                 roughness={roughness}
                 metalness={metalness}
-                dimensionScale={dimensionScale}
+                scaleX={scaleX}
+                scaleY={scaleY}
+                scaleZ={scaleZ}
             />
-            <ContactShadows position={[0, -1.05, 0]} opacity={0.3} scale={6} blur={2} far={2} />
-            <Environment preset="apartment" />
+
+            <HumanSilhouette />
+
+            <ContactShadows
+                position={[0, -1.05, 0]}
+                opacity={0.25}
+                scale={8}
+                blur={2.5}
+                far={2}
+            />
+
             <OrbitControls
                 enableDamping
-                dampingFactor={0.06}
-                minPolarAngle={Math.PI / 6}
-                maxPolarAngle={Math.PI / 2.1}
-                minDistance={2}
-                maxDistance={7}
-                target={[0, 0.5, 0]}
+                dampingFactor={0.05}
+                minPolarAngle={Math.PI * 0.2}
+                maxPolarAngle={Math.PI * 0.52}
+                minDistance={1.8}
+                maxDistance={6}
+                target={[0, 0.6, 0]}
+                enablePan={false}
             />
         </Canvas>
     );
 }
 
-// Preload
 useGLTF.preload('/models/dulap.glb');
