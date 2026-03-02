@@ -16,10 +16,10 @@ export default function FurnitureViewer() {
             {/* BACKGROUND GRADIENT */}
             <div className="absolute inset-0 bg-radial-at-t from-[#111] via-[#000] to-[#000] opacity-50" />
 
-            <Canvas shadows antialias="true">
+            <Canvas shadows gl={{ antialias: true }}>
                 <PerspectiveCamera makeDefault position={[2.5, 2, 2.5]} fov={45} />
                 <Suspense fallback={null}>
-                    <Stage environment="studio" intensity={0.5} contactShadow={{ opacity: 0.4, blur: 2 }}>
+                    <Stage environment="studio" intensity={0.5} shadows={{ type: 'contact', opacity: 0.4, blur: 2 }}>
                         <DynamicCabinet
                             width={dimensions.width}
                             height={dimensions.height}

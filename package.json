@@ -19,12 +19,12 @@
     "dotenv": "^16.4.5",
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.454.0",
-    "next": "15.1.0",
+    "next": "15.1.7",
     "payload": "3.0.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "tailwind-merge": "^2.5.4",
-    "three": "^0.169.0",
+    "three": "^0.174.0",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
