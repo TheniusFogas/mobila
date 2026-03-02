@@ -6,6 +6,7 @@ import { Materials } from './collections/Materials';
 import { Hardware } from './collections/Hardware';
 import { Orders } from './collections/Orders';
 import { Models } from './collections/Models';
+import { Categories } from './collections/Categories';
 import { Media } from './collections/Media';
 import { fileURLToPath } from 'url';
 
@@ -20,17 +21,16 @@ export default buildConfig({
         },
     },
     collections: [
+        Categories,
+        Models,
         Materials,
         Hardware,
         Orders,
-        Models,
         Media,
         {
             slug: 'users',
             auth: true,
-            admin: {
-                useAsTitle: 'email',
-            },
+            admin: { useAsTitle: 'email' },
             fields: [],
         },
     ],

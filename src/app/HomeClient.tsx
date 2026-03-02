@@ -1,55 +1,50 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import Link from 'next/link';
+import { useState } from 'react';
 
-export default function HomeClient() {
-    const [FurnitureViewer, setFurnitureViewer] = useState<React.ComponentType | null>(null);
-    const [DiscoveryEngine, setDiscoveryEngine] = useState<React.ComponentType | null>(null);
-    const [mounted, setMounted] = useState(false);
+interface Category {
+    slug: string;
+    name: string;
+    description: string;
+    emoji: string;
+}
 
-    useEffect(() => {
-        // Load everything dynamically after mount to ensure browser-only execution
-        Promise.all([
-            import('@/components/FurnitureViewer'),
-            import('@/components/DiscoveryEngine'),
-        ]).then(([furnitureModule, discoveryModule]) => {
-            setFurnitureViewer(() => furnitureModule.default);
-            setDiscoveryEngine(() => discoveryModule.DiscoveryEngine);
-            setMounted(true);
-        }).catch(err => {
-            console.error('Failed to load components:', err);
-        });
-    }, []);
-
-    if (!mounted || !FurnitureViewer) {
-        return (
-            <div style={{
-                width: '100vw', height: '100vh', background: '#000',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-                <div style={{ textAlign: 'center' }}>
-                    <div style={{
-                        width: '32px', height: '32px',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '50%',
-                        borderTopColor: 'white',
-                        animation: 'spin 0.8s linear infinite',
-                        margin: '0 auto 16px'
-                    }} />
-                    <p style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase' }}>
-                        KAGU Industrial
-                    </p>
-                </div>
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-            </div>
-        );
-    }
+export default function HomeClient({ categories }: { categories: Category[] }) {
+    const [hovered, setHovered] = useState<string | null>(null);
 
     return (
-        <ErrorBoundary>
-            <FurnitureViewer />
-            {DiscoveryEngine && <DiscoveryEngine />}
-        </ErrorBoundary>
+        <section style={{ padding: '0 48px 80px', maxWidth: 1200, margin: '0 auto' }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2, color: '#999', textTransform: 'uppercase', marginBottom: 24 }}>
+                Colecții
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                {categories.map(cat => (
+                    <Link key={cat.slug} href={`/${cat.slug}`} style={{ textDecoration: 'none' }}>
+                        <div
+                            onMouseEnter={() => setHovered(cat.slug)}
+                            onMouseLeave={() => setHovered(null)}
+                            style={{
+                                background: '#fff', borderRadius: 12, overflow: 'hidden',
+                                boxShadow: hovered === cat.slug ? '0 8px 28px rgba(0,0,0,0.13)' : '0 2px 12px rgba(0,0,0,0.06)',
+                                transform: hovered === cat.slug ? 'translateY(-4px)' : 'none',
+                                transition: 'transform 0.2s, box-shadow 0.2s',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            {/* Hero image from Payload — emoji until admin uploads */}
+                            <div style={{ height: 180, background: '#F0ECE7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>
+                                {cat.emoji}
+                            </div>
+                            <div style={{ padding: '16px 20px 20px' }}>
+                                <div style={{ fontWeight: 700, fontSize: 17, color: '#1A1A1A' }}>{cat.name}</div>
+                                <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{cat.description}</div>
+                                <div style={{ marginTop: 12, fontSize: 12, color: '#E8472C', fontWeight: 600 }}>Explorează →</div>
+                            </div>
+                        </div>
+                    </Link>
+                ))}
+            </div>
+        </section>
     );
 }
