@@ -33,7 +33,7 @@ export default buildConfig({
         },
     ],
     editor: lexicalEditor({}),
-    secret: process.env.PAYLOAD_SECRET || 'fallback-secret-for-dev',
+    secret: process.env.PAYLOAD_SECRET || '7f5e8a9b2c3d4e5f6g7h8i9j0k1l2m3n',
     typescript: {
         outputFile: path.resolve(dirname, 'payload-types.ts'),
     },

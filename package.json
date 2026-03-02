@@ -6,16 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "next lint"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
-    "@payloadcms/db-postgres": "^3.0.0",
-    "next": "16.0.7",
-    "payload": "3.8.0",
     "@payloadcms/db-postgres": "3.8.0",
     "@payloadcms/next": "3.8.0",
     "@payloadcms/richtext-lexical": "3.8.0",
+    "@react-three/drei": "^9.112.0",
+    "@react-three/fiber": "^8.17.6",
+    "@supabase/supabase-js": "^2.45.4",
+    "clsx": "^2.1.1",
+    "dotenv": "^16.4.5",
+    "lucide-react": "^0.454.0",
+    "next": "16.1.1",
+    "payload": "3.8.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "tailwind-merge": "^2.5.4",
@@ -28,7 +33,7 @@
     "@types/react-dom": "^19.0.0",
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
-    "eslint-config-next": "16.0.7",
+    "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
