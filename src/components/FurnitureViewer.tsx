@@ -6,10 +6,28 @@ import { OrbitControls, Stage, PerspectiveCamera, Environment } from '@react-thr
 import { DynamicCabinet } from './DynamicCabinet';
 import { useConfiguratorStore } from '@/store/useConfiguratorStore';
 import { MeasurementOverlay } from './MeasurementOverlay';
+import { generateBOM } from '@/lib/manufacturing/bom';
+import { exportToDXF } from '@/lib/manufacturing/exporters';
+import { generateSystem32DrillMap } from '@/lib/manufacturing/system32';
 
 export default function FurnitureViewer() {
     const { dimensions, updateDimension } = useConfiguratorStore();
     const [isXray, setIsXray] = useState(false);
+
+    // Dynamic Manufacturing Data
+    const bom = generateBOM(dimensions.width, dimensions.height, dimensions.depth);
+
+    const handleCncExport = () => {
+        const drillMap = generateSystem32DrillMap(dimensions.width, dimensions.height, dimensions.depth);
+        const dxf = exportToDXF(drillMap);
+
+        const element = document.createElement("a");
+        const file = new Blob([dxf], { type: 'text/plain' });
+        element.href = URL.createObjectURL(file);
+        element.download = `PROD_${dimensions.width}x${dimensions.height}.dxf`;
+        document.body.appendChild(element);
+        element.click();
+    };
 
     return (
         <div className="w-full h-screen bg-[#000] relative overflow-hidden">
@@ -112,20 +130,20 @@ export default function FurnitureViewer() {
                     <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Specificații Fabricație</span>
                     <div className="mt-4 grid grid-cols-2 gap-4">
                         <div>
-                            <p className="text-[9px] text-gray-500 uppercase">Găuri Minifix</p>
-                            <p className="text-xs text-white font-mono">16 Unități</p>
+                            <p className="text-[9px] text-gray-500 uppercase">Total Panouri</p>
+                            <p className="text-xs text-white font-mono">{bom.panels.length} Piese</p>
                         </div>
                         <div>
-                            <p className="text-[9px] text-gray-500 uppercase">Tip Cant (ABS)</p>
-                            <p className="text-xs text-white font-mono">2.0 mm / 0.4 mm</p>
+                            <p className="text-[9px] text-gray-500 uppercase">Suprafață PAL</p>
+                            <p className="text-xs text-white font-mono">{bom.totalMaterialM2.toFixed(2)} m²</p>
                         </div>
                         <div>
-                            <p className="text-[9px] text-gray-500 uppercase">Eficiență Nesting</p>
-                            <p className="text-xs text-accent font-mono">92.4%</p>
+                            <p className="text-[9px] text-gray-500 uppercase">Status Echipare</p>
+                            <p className="text-xs text-accent font-mono uppercase tracking-tighter italic">System 32 Ready</p>
                         </div>
                         <div>
-                            <p className="text-[9px] text-gray-500 uppercase">Timp Producție</p>
-                            <p className="text-xs text-white font-mono">2 Zile</p>
+                            <p className="text-[9px] text-gray-500 uppercase">Timp Execuție</p>
+                            <p className="text-xs text-white font-mono">Real-time CNC</p>
                         </div>
                     </div>
                 </div>
@@ -133,22 +151,21 @@ export default function FurnitureViewer() {
                 <div className="glass p-8 rounded-2xl pointer-events-auto min-w-[320px]">
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Cost Total</span>
+                            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Cost Material</span>
                             <div className="flex items-baseline gap-1 mt-1">
                                 <span className="text-4xl font-light text-white tracking-tighter">
-                                    {Math.round((dimensions.width * dimensions.height * 0.00045) + 150)}
+                                    {Math.round(bom.totalMaterialM2 * 125 + 95)}
                                 </span>
                                 <span className="text-sm text-gray-400 font-medium">RON</span>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Material</span>
-                            <p className="text-xs text-white font-medium mt-1">MDF Stejar 18mm</p>
-                        </div>
                     </div>
 
-                    <button className="w-full py-4 bg-white text-black text-[10px] font-black rounded-xl hover:bg-white/90 transition-all uppercase tracking-[2px] shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 flex items-center justify-center gap-2">
-                        FINALIZARE COMANDĂ
+                    <button
+                        onClick={handleCncExport}
+                        className="w-full py-4 bg-white text-black text-[10px] font-black rounded-xl hover:bg-white/90 transition-all uppercase tracking-[2px] shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 flex items-center justify-center gap-2"
+                    >
+                        DESCARCĂ FIȘIERE CNC (.DXF)
                     </button>
                 </div>
             </div>
