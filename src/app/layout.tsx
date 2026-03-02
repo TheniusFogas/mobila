@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'KAGU Industrial – Configurator Mobilă Parametric',
@@ -20,9 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ro">
-      <body style={{ margin: 0, padding: 0, background: '#000', overflow: 'hidden' }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
