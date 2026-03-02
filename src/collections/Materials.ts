@@ -1,4 +1,4 @@
-import { CollectionConfig } from 'payload/types';
+import type { CollectionConfig } from 'payload';
 
 export const Materials: CollectionConfig = {
   slug: 'materials',
@@ -13,47 +13,41 @@ export const Materials: CollectionConfig = {
       required: true,
     },
     {
-      name: 'thickness',
-      type: 'number',
-      required: true,
-      admin: {
-        description: 'Thickness in millimeters (e.g. 18)',
-      },
-    },
-    {
-      name: 'density',
-      type: 'number',
-      admin: {
-        description: 'Density in kg/m3 (for weight calculation)',
-      },
-    },
-    {
-      name: 'grainDirection',
+      name: 'type',
       type: 'select',
       options: [
-        { label: 'Vertical', value: 'vertical' },
-        { label: 'Horizontal', value: 'horizontal' },
-        { label: 'None (Solid Color)', value: 'none' },
+        { label: 'PAL Melaminat', value: 'pal' },
+        { label: 'MDF', value: 'mdf' },
+        { label: 'Placaj', value: 'plywood' },
+        { label: 'HDF (Spate)', value: 'hdf' },
       ],
-      defaultValue: 'vertical',
     },
     {
-      name: 'basePrice',
+      name: 'thickness',
       type: 'number',
-      required: true,
-      admin: {
-        description: 'Price per square meter',
-      },
+      defaultValue: 18,
+    },
+    {
+      name: 'pricePerM2',
+      type: 'number',
+    },
+    {
+      name: 'color',
+      type: 'text',
     },
     {
       name: 'texture',
-      type: 'upload',
-      relationTo: 'media',
+      type: 'text',
     },
     {
-      name: 'visibleInConfigurator',
-      type: 'checkbox',
-      defaultValue: true,
+      name: 'sheetWidth',
+      type: 'number',
+      defaultValue: 2800,
+    },
+    {
+      name: 'sheetHeight',
+      type: 'number',
+      defaultValue: 2070,
     },
   ],
 };

@@ -1,13 +1,10 @@
-import { CollectionConfig } from 'payload/types';
+import type { CollectionConfig } from 'payload';
 
 export const Media: CollectionConfig = {
     slug: 'media',
-    upload: {
-        staticDir: 'public/media',
-        mimeTypes: ['image/*', 'model/gltf-binary', 'application/octet-stream'],
-    },
-    access: {
-        read: () => true,
+    upload: true,
+    admin: {
+        group: 'Assets',
     },
     fields: [
         {

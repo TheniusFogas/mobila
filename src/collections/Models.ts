@@ -1,10 +1,10 @@
-import { CollectionConfig } from 'payload/types';
+import type { CollectionConfig } from 'payload';
 
 export const Models: CollectionConfig = {
     slug: 'models',
     admin: {
         useAsTitle: 'name',
-        group: 'Engineering',
+        group: 'Products',
     },
     fields: [
         {
@@ -13,67 +13,48 @@ export const Models: CollectionConfig = {
             required: true,
         },
         {
-            name: 'roomCategory',
+            name: 'category',
             type: 'select',
             options: [
-                { label: 'Kitchen', value: 'kitchen' },
-                { label: 'Living Room', value: 'living' },
-                { label: 'Bedroom', value: 'bedroom' },
-            ],
-            required: true,
-        },
-        {
-            name: 'asset',
-            type: 'upload',
-            relationTo: 'media',
-            required: true,
-            admin: {
-                description: '3D Mesh file (.glb) following 3D_ASSET_SPEC',
-            },
-        },
-        {
-            name: 'constraints',
-            type: 'group',
-            fields: [
-                {
-                    name: 'minWidth',
-                    type: 'number',
-                    defaultValue: 300,
-                },
-                {
-                    name: 'maxWidth',
-                    type: 'number',
-                    defaultValue: 1200,
-                },
-                {
-                    name: 'stepX',
-                    type: 'number',
-                    defaultValue: 15,
-                    admin: {
-                        description: 'Tylko snapping increment in millimeters',
-                    },
-                },
-                {
-                    name: 'lockZ',
-                    type: 'checkbox',
-                    defaultValue: true,
-                    admin: {
-                        description: 'Lock depth axis (standard)',
-                    },
-                },
+                { label: 'Bucătărie', value: 'kitchen' },
+                { label: 'Living', value: 'living' },
+                { label: 'Dormitor', value: 'bedroom' },
+                { label: 'Baie', value: 'bathroom' },
             ],
         },
         {
-            name: 'compatibleMaterials',
-            type: 'relationship',
-            relationTo: 'materials',
-            hasMany: true,
+            name: 'widthMin',
+            type: 'number',
+            defaultValue: 300,
         },
         {
-            name: 'compatibleHardware',
-            type: 'relationship',
-            relationTo: 'hardware',
-            hasMany: true,
+            name: 'widthMax',
+            type: 'number',
+            defaultValue: 1200,
+        },
+        {
+            name: 'heightMin',
+            type: 'number',
+            defaultValue: 300,
+        },
+        {
+            name: 'heightMax',
+            type: 'number',
+            defaultValue: 2400,
+        },
+        {
+            name: 'depthMin',
+            type: 'number',
+            defaultValue: 300,
+        },
+        {
+            name: 'depthMax',
+            type: 'number',
+            defaultValue: 600,
+        },
+        {
+            name: 'basePrice',
+            type: 'number',
         },
     ],
 };
