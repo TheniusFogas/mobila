@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { type ThreeElements } from '@react-three/fiber';
 
 interface DynamicCabinetProps {
     width: number;
@@ -9,12 +8,6 @@ interface DynamicCabinetProps {
     depth: number;
     materialColor?: string;
     isXray?: boolean;
-}
-
-declare global {
-    namespace JSX {
-        interface IntrinsicElements extends ThreeElements { }
-    }
 }
 
 export const DynamicCabinet: React.FC<DynamicCabinetProps> = ({
@@ -28,11 +21,26 @@ export const DynamicCabinet: React.FC<DynamicCabinetProps> = ({
     const h = height / 1000;
     const d = depth / 1000;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const G = 'group' as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const M = 'mesh' as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const BoxGeo = 'boxGeometry' as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const StdMat = 'meshStandardMaterial' as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpGeo = 'sphereGeometry' as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const BasicMat = 'meshBasicMaterial' as any;
+
+    const drillPositions: [number, number][] = [[-0.45, 0.45], [0.45, 0.45], [-0.45, -0.45], [0.45, -0.45]];
+
     return (
-        <group>
-            <mesh castShadow receiveShadow scale={[w, h, d]}>
-                <boxGeometry args={[1, 1, 1]} />
-                <meshStandardMaterial
+        <G>
+            <M castShadow receiveShadow scale={[w, h, d]}>
+                <BoxGeo args={[1, 1, 1]} />
+                <StdMat
                     color={materialColor}
                     roughness={0.1}
                     metalness={0.05}
@@ -40,19 +48,13 @@ export const DynamicCabinet: React.FC<DynamicCabinetProps> = ({
                     opacity={isXray ? 0.2 : 1}
                     wireframe={isXray}
                 />
-
-                {/* X-RAY drilling visualization */}
-                {isXray && (
-                    <>
-                        {([[-0.45, 0.45], [0.45, 0.45], [-0.45, -0.45], [0.45, -0.45]] as [number, number][]).map((pos, i) => (
-                            <mesh key={i} position={[pos[0], pos[1], 0.49]}>
-                                <sphereGeometry args={[0.015, 16, 16]} />
-                                <meshBasicMaterial color="#3b82f6" />
-                            </mesh>
-                        ))}
-                    </>
-                )}
-            </mesh>
-        </group>
+            </M>
+            {isXray && drillPositions.map((pos, i) => (
+                <M key={i} position={[pos[0] * w, pos[1] * h, d / 2 + 0.001]}>
+                    <SpGeo args={[0.008, 8, 8]} />
+                    <BasicMat color="#3b82f6" />
+                </M>
+            ))}
+        </G>
     );
 };
