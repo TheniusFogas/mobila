@@ -1,42 +1,40 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
+import { CABINET_CATEGORIES, STANDARD_WIDTHS, STANDARD_HEIGHTS, STANDARD_DEPTHS } from '@/lib/seo/metadata';
 
 /**
- * SEO Internal Linking Component
- * Generates discovery paths for Google to find permutations.
+ * ARCH 5: SEO Discovery Engine
+ * Renders a dense footer grid of internal links so Google can crawl
+ * all 2,940 cabinet configuration permutations.
  */
 export const DiscoveryEngine = () => {
-    const categories = [
-        { title: 'Bucătărie', items: ['Dulap Superior', 'Corp Bază', 'Turn Electrocasnice'] },
-        { title: 'Living', items: ['Comodă TV', 'Raft Cărți', 'Corp Suspendat'] },
-        { title: 'Dormitor', items: ['Noptieră Custom', 'Dressing Parametric'] },
-    ];
+    // Generate a representative sample for footer display (not all 2940)
+    const featured = CABINET_CATEGORIES.flatMap(cat =>
+        [600, 800, 1000].flatMap(w =>
+            [720, 900, 2100].map(h => ({
+                label: `${cat.label} ${w}×${h}mm`,
+                href: `/configurator/${cat.slug}/${w}-${h}-450`,
+            }))
+        )
+    );
 
     return (
-        <footer className="w-full bg-[#050505] border-t border-white/5 p-12 mt-24">
-            <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
-                {categories.map((cat) => (
-                    <div key={cat.title}>
-                        <h3 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold mb-6">{cat.title}</h3>
-                        <ul className="space-y-3">
-                            {cat.items.map(item => (
-                                <li key={item}>
-                                    <Link href={`/configurator?type=${item.toLowerCase().replace(' ', '-')}`} className="text-sm text-gray-400 hover:text-white transition-colors">
-                                        {item}
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                ))}
-            </div>
-            <div className="mt-24 pt-8 border-t border-white/5 flex justify-between items-center">
-                <p className="text-[10px] text-gray-600">© 2026 KAGU INDUSTRIAL. Toate drepturile rezervate.</p>
-                <div className="flex gap-8">
-                    <span className="text-[10px] text-gray-600 uppercase tracking-tighter">CNC Ready</span>
-                    <span className="text-[10px] text-gray-600 uppercase tracking-tighter">Precision Engineering</span>
+        <footer className="absolute bottom-0 left-0 right-0 z-20 bg-black/40 border-t border-white/5 backdrop-blur-sm">
+            <div className="px-6 py-3">
+                <p className="text-[8px] text-gray-700 uppercase tracking-widest font-bold mb-2">
+                    Configurații Populare
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    {featured.map((item) => (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            className="text-[9px] text-gray-600 hover:text-gray-400 transition-colors"
+                        >
+                            {item.label}
+                        </Link>
+                    ))}
                 </div>
             </div>
         </footer>
