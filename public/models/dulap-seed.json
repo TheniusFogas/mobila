@@ -1,0 +1,129 @@
+[
+    {
+        "id": "dulap-001",
+        "name": "Dulap Modular",
+        "slug": "dulap-modular",
+        "glbUrl": "/models/dulap.glb",
+        "category": "dormitor",
+        "defaultDimensions": {
+            "width": 900,
+            "height": 2100,
+            "depth": 600
+        },
+        "constraints": {
+            "width": {
+                "min": 600,
+                "max": 2400,
+                "step": 150
+            },
+            "height": {
+                "min": 1800,
+                "max": 2400,
+                "step": 100
+            },
+            "depth": {
+                "min": 450,
+                "max": 650,
+                "step": 50
+            }
+        },
+        "materials": [
+            {
+                "id": "white-mat",
+                "name": "Alb Mat",
+                "color": "#F5F0EB",
+                "roughness": 0.9,
+                "metalness": 0.0
+            },
+            {
+                "id": "white-gloss",
+                "name": "Alb Lucios",
+                "color": "#FFFFFF",
+                "roughness": 0.05,
+                "metalness": 0.1
+            },
+            {
+                "id": "oak-nat",
+                "name": "Stejar Nat.",
+                "color": "#B8935A",
+                "roughness": 0.8,
+                "metalness": 0.0
+            },
+            {
+                "id": "graphite",
+                "name": "Grafit",
+                "color": "#3A3A3A",
+                "roughness": 0.6,
+                "metalness": 0.0
+            },
+            {
+                "id": "sage",
+                "name": "Sage Green",
+                "color": "#8FAF8A",
+                "roughness": 0.85,
+                "metalness": 0.0
+            },
+            {
+                "id": "navy",
+                "name": "Navy",
+                "color": "#2C3E6A",
+                "roughness": 0.7,
+                "metalness": 0.0
+            },
+            {
+                "id": "terracotta",
+                "name": "Teracotă",
+                "color": "#C17A5A",
+                "roughness": 0.75,
+                "metalness": 0.0
+            },
+            {
+                "id": "black-mat",
+                "name": "Negru Mat",
+                "color": "#1A1A1A",
+                "roughness": 0.9,
+                "metalness": 0.0
+            }
+        ],
+        "interiorOptions": [
+            {
+                "id": "shelf-3",
+                "name": "3 Polițe",
+                "shelfCount": 3
+            },
+            {
+                "id": "shelf-4",
+                "name": "4 Polițe",
+                "shelfCount": 4
+            },
+            {
+                "id": "shelf-rail",
+                "name": "Poliță + RA",
+                "shelfCount": 2,
+                "hasRail": true
+            },
+            {
+                "id": "drawers-3",
+                "name": "3 Sertare",
+                "drawerCount": 3
+            }
+        ],
+        "doorStyles": [
+            {
+                "id": "full-overlay",
+                "name": "Ușă Completă"
+            },
+            {
+                "id": "frame-glass",
+                "name": "Ramă + Sticlă"
+            },
+            {
+                "id": "open",
+                "name": "Deschis"
+            }
+        ],
+        "pricePerM2": 1250,
+        "laborBase": 350,
+        "currency": "RON"
+    }
+]
