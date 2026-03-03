@@ -3,102 +3,266 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, Html } from '@react-three/drei';
+import { OrbitControls, Html, Environment } from '@react-three/drei';
 
 /* ─── constants ─── */
-const WALL = '#F0EDE8';
-const FLOOR = '#E2DDD6';
-const EDGE = '#C8BFAF';
-const T = 0.018;   // panel thickness 18 mm
+const T = 0.018; // 18mm panel
 
-/* ─── Wood grain procedural texture ─── */
-function createWoodTexture(hexColor: string, size = 512): THREE.CanvasTexture {
+/* ─── Procedural HDR Environment (gradient sky dome) ─── */
+function ProceduralEnvironment() {
+    const { scene } = useThree();
+    useEffect(() => {
+        // Create a gradient sky texture
+        const size = 256;
+        const data = new Uint8Array(size * size * 4);
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const t = y / size;
+                // Sky gradient: warm white top → beige bottom
+                const r = Math.round(THREE.MathUtils.lerp(255, 230, t));
+                const g = Math.round(THREE.MathUtils.lerp(252, 224, t));
+                const b = Math.round(THREE.MathUtils.lerp(248, 210, t));
+                const idx = (y * size + x) * 4;
+                data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = 255;
+            }
+        }
+        const tex = new THREE.DataTexture(data, size, size);
+        tex.needsUpdate = true;
+        // Use as environment map (simple)
+        scene.background = new THREE.Color('#EDEAE4');
+        scene.environmentIntensity = 1;
+        return () => { };
+    }, [scene]);
+    return null;
+}
+
+/* ─── Wood grain canvas texture — VISIBLE, high contrast ─── */
+function createWoodTexture(hex: string): THREE.CanvasTexture {
+    const W = 1024, H = 512;
     const c = document.createElement('canvas');
-    c.width = size; c.height = size;
+    c.width = W; c.height = H;
     const ctx = c.getContext('2d')!;
 
-    // Parse color
-    const r = parseInt(hexColor.slice(1, 3), 16);
-    const g = parseInt(hexColor.slice(3, 5), 16);
-    const b = parseInt(hexColor.slice(5, 7), 16);
+    // Parse base color
+    const r0 = parseInt(hex.slice(1, 3), 16);
+    const g0 = parseInt(hex.slice(3, 5), 16);
+    const b0 = parseInt(hex.slice(5, 7), 16);
 
-    // Base fill
-    ctx.fillStyle = hexColor;
-    ctx.fillRect(0, 0, size, size);
+    // Base coat
+    ctx.fillStyle = hex;
+    ctx.fillRect(0, 0, W, H);
 
-    // Grain lines — subtle organic wood pattern
-    const numLines = 28 + Math.floor(Math.random() * 8);
-    for (let i = 0; i < numLines; i++) {
-        const x = (i / numLines) * size + (Math.random() - 0.5) * 22;
-        const width = 1 + Math.random() * 3.5;
-        const alpha = 0.04 + Math.random() * 0.08;
-        const darker = Math.random() > 0.5;
-        const dr = darker ? -18 : 12;
+    // Dark base grain wash
+    const grad = ctx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0, `rgba(${Math.max(0, r0 - 22)},${Math.max(0, g0 - 18)},${Math.max(0, b0 - 12)},0.35)`);
+    grad.addColorStop(0.5, `rgba(${Math.min(255, r0 + 18)},${Math.min(255, g0 + 14)},${Math.min(255, b0 + 8)},0.2)`);
+    grad.addColorStop(1, `rgba(${Math.max(0, r0 - 22)},${Math.max(0, g0 - 18)},${Math.max(0, b0 - 12)},0.35)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Main grain lines — PROMINENT
+    const rng = (min: number, max: number) => min + Math.random() * (max - min);
+    for (let i = 0; i < 60; i++) {
+        const x = rng(0, W);
+        const lineW = rng(0.8, 4.5);
+        const dark = Math.random() > 0.45;
+        const alpha = rng(0.08, 0.22);
+        const dr = dark ? -rng(20, 45) : rng(10, 30);
+
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        // Wavy grain line
+        ctx.moveTo(x + rng(-4, 4), 0);
         let cy = 0;
-        while (cy < size) {
-            const dy = 12 + Math.random() * 18;
-            const dx = (Math.random() - 0.5) * 8;
-            ctx.lineTo(x + dx, cy + dy);
-            cy += dy;
+        let cx2 = x;
+        while (cy < H) {
+            const step = rng(20, 60);
+            cx2 += rng(-6, 6);
+            ctx.quadraticCurveTo(cx2 + rng(-10, 10), cy + step / 2, cx2, cy + step);
+            cy += step;
         }
-        ctx.strokeStyle = `rgba(${r + dr},${g + dr},${b + dr},${alpha})`;
-        ctx.lineWidth = width;
+        ctx.strokeStyle = `rgba(${Math.round(Math.max(0, Math.min(255, r0 + dr)))},${Math.round(Math.max(0, Math.min(255, g0 + dr * 0.8)))},${Math.round(Math.max(0, Math.min(255, b0 + dr * 0.5)))},${alpha})`;
+        ctx.lineWidth = lineW;
         ctx.stroke();
     }
 
-    // Fine grain texture noise
-    for (let y = 0; y < size; y += 2) {
-        for (let x = 0; x < size; x += 2) {
-            if (Math.random() > 0.82) {
-                const alpha = Math.random() * 0.06;
-                const dark = Math.random() > 0.5;
-                ctx.fillStyle = dark
-                    ? `rgba(${r - 15},${g - 15},${b - 15},${alpha})`
-                    : `rgba(${r + 15},${g + 15},${b + 15},${alpha})`;
-                ctx.fillRect(x, y, 2, 1);
-            }
-        }
+    // Fine pores / microscopic grain
+    for (let i = 0; i < 3000; i++) {
+        const px = Math.random() * W;
+        const py = Math.random() * H;
+        const len = rng(4, 18);
+        const alpha = rng(0.04, 0.12);
+        const dark = Math.random() > 0.5;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + rng(-1, 1), py + len);
+        ctx.strokeStyle = dark
+            ? `rgba(${Math.max(0, r0 - 30)},${Math.max(0, g0 - 25)},${Math.max(0, b0 - 18)},${alpha})`
+            : `rgba(${Math.min(255, r0 + 25)},${Math.min(255, g0 + 20)},${Math.min(255, b0 + 12)},${alpha * 0.7})`;
+        ctx.lineWidth = rng(0.4, 1.2);
+        ctx.stroke();
     }
+
+    // Highlight sheen strip
+    const sheen = ctx.createLinearGradient(0, 0, W * 0.3, 0);
+    sheen.addColorStop(0, 'rgba(255,255,255,0)');
+    sheen.addColorStop(0.5, 'rgba(255,255,255,0.07)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(0, 0, W, H);
 
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(1, 3);
+    tex.repeat.set(2, 4);
+    tex.anisotropy = 8;
     tex.needsUpdate = true;
     return tex;
 }
 
-/* ─── Wood material hook ─── */
-function useWoodMaterial(hexColor: string, roughness = 0.82) {
-    return useMemo(() => {
-        if (typeof window === 'undefined') return null;
-        const tex = createWoodTexture(hexColor);
-        const mat = new THREE.MeshStandardMaterial({
-            map: tex, roughness, metalness: 0,
-        });
-        return mat;
-    }, [hexColor, roughness]);
+/* ─── Normal map for wood (fake depth) ─── */
+function createWoodNormal(): THREE.CanvasTexture {
+    const W = 512, H = 256;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#8080ff'; // flat normal baseline
+    ctx.fillRect(0, 0, W, H);
+
+    for (let i = 0; i < 40; i++) {
+        const x = Math.random() * W;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        let cy = 0, cx2 = x;
+        while (cy < H) {
+            const step = 20 + Math.random() * 40;
+            cx2 += (Math.random() - 0.5) * 6;
+            ctx.lineTo(cx2, cy + step);
+            cy += step;
+        }
+        ctx.strokeStyle = `rgba(${100 + Math.round(Math.random() * 40)},${120 + Math.round(Math.random() * 30)},255,0.6)`;
+        ctx.lineWidth = 1 + Math.random() * 2;
+        ctx.stroke();
+    }
+
+    const n = new THREE.CanvasTexture(c);
+    n.wrapS = n.wrapT = THREE.RepeatWrapping;
+    n.repeat.set(2, 4);
+    n.needsUpdate = true;
+    return n;
 }
 
-/* ─── Infinite floor + wall ─── */
-function InfiniteRoom() {
+/* ─── Material cache (per hex colour) ─── */
+const matCache = new Map<string, THREE.MeshStandardMaterial>();
+function getWoodMat(hex: string, roughness = 0.72, metalness = 0.02): THREE.MeshStandardMaterial {
+    const key = hex + roughness;
+    if (matCache.has(key)) return matCache.get(key)!;
+    if (typeof window === 'undefined') return new THREE.MeshStandardMaterial({ color: hex });
+    const tex = createWoodTexture(hex);
+    const norm = createWoodNormal();
+    const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        normalMap: norm,
+        normalScale: new THREE.Vector2(0.4, 0.4),
+        roughness,
+        metalness,
+    });
+    matCache.set(key, mat);
+    return mat;
+}
+
+/* ─── Studio Lighting — 3-point + rim ─── */
+function StudioLights({ cabinetW, cabinetH }: { cabinetW: number; cabinetH: number }) {
+    const { scene } = useThree();
+    useEffect(() => {
+        const lights: THREE.Light[] = [];
+
+        // Key light — warm, strong, from top-left
+        const key = new THREE.DirectionalLight('#fff8f0', 2.8);
+        key.position.set(-cabinetW * 1.5, cabinetH * 1.6, cabinetH * 1.2);
+        key.castShadow = true;
+        key.shadow.mapSize.setScalar(4096);
+        key.shadow.camera.near = 0.1;
+        key.shadow.camera.far = 20;
+        key.shadow.camera.left = -cabinetW * 2;
+        key.shadow.camera.right = cabinetW * 2;
+        key.shadow.camera.top = cabinetH * 1.5;
+        key.shadow.camera.bottom = -cabinetH * 0.5;
+        key.shadow.bias = -0.0002;
+        key.shadow.radius = 3;
+        lights.push(key);
+
+        // Fill light — cool, soft, from right
+        const fill = new THREE.DirectionalLight('#d8e8ff', 0.9);
+        fill.position.set(cabinetW * 2, cabinetH * 0.8, cabinetH * 0.6);
+        lights.push(fill);
+
+        // Rim light — from behind, warm accent
+        const rim = new THREE.DirectionalLight('#ffead0', 1.2);
+        rim.position.set(cabinetW * 0.5, cabinetH * 1.4, -cabinetH * 0.8);
+        lights.push(rim);
+
+        // Hemisphere — sky/ground ambient
+        const hemi = new THREE.HemisphereLight('#e8ecff', '#c4b898', 0.7);
+        lights.push(hemi);
+
+        // Floor bounce
+        const bounce = new THREE.PointLight('#fff5e8', 0.5, cabinetH * 3);
+        bounce.position.set(0, 0, cabinetH * 0.8);
+        lights.push(bounce);
+
+        lights.forEach(l => scene.add(l));
+        return () => lights.forEach(l => scene.remove(l));
+    }, [scene, cabinetW, cabinetH]);
+    return null;
+}
+
+/* ─── Polished marble floor ─── */
+function Floor() {
+    const tex = useMemo(() => {
+        if (typeof window === 'undefined') return null;
+        const W = 512, H = 512;
+        const c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = '#E8E4DC';
+        ctx.fillRect(0, 0, W, H);
+        // Subtle tile grid
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 8; i++) {
+            ctx.beginPath(); ctx.moveTo(i * W / 8, 0); ctx.lineTo(i * W / 8, H); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i * H / 8); ctx.lineTo(W, i * H / 8); ctx.stroke();
+        }
+        const t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(8, 8);
+        t.needsUpdate = true;
+        return t;
+    }, []);
+
     return (
-        <group>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-                <planeGeometry args={[80, 80]} />
-                <meshStandardMaterial color={FLOOR} roughness={1} />
-            </mesh>
-            <mesh position={[0, 20, -8]} receiveShadow>
-                <planeGeometry args={[80, 40]} />
-                <meshStandardMaterial color={WALL} roughness={1} />
-            </mesh>
-        </group>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+            <planeGeometry args={[40, 40]} />
+            <meshStandardMaterial
+                map={tex ?? undefined}
+                color="#E8E4DC"
+                roughness={0.18}
+                metalness={0.05}
+                envMapIntensity={0.4}
+            />
+        </mesh>
     );
 }
 
-/* ─── SVG-traced human silhouette ─── */
+/* ─── Back wall ─── */
+function BackWall({ cabinetH }: { cabinetH: number }) {
+    return (
+        <mesh position={[0, cabinetH * 0.6, -4]} receiveShadow>
+            <planeGeometry args={[40, cabinetH * 2.5]} />
+            <meshStandardMaterial color="#F2EFE9" roughness={0.95} />
+        </mesh>
+    );
+}
+
+/* ─── Human silhouette ─── */
 function HumanSilhouette({ x }: { x: number }) {
     const tex = useMemo(() => {
         if (typeof window === 'undefined') return null;
@@ -106,334 +270,205 @@ function HumanSilhouette({ x }: { x: number }) {
         const c = document.createElement('canvas');
         c.width = W; c.height = H;
         const ctx = c.getContext('2d')!;
-        ctx.fillStyle = 'rgba(60,55,50,0.28)';
-
-        ctx.beginPath();
-        ctx.ellipse(W / 2, 36, 22, 28, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.rect(W / 2 - 9, 62, 18, 16);
-        ctx.fill();
-
+        ctx.fillStyle = 'rgba(80,70,60,0.22)';
+        ctx.beginPath(); ctx.ellipse(W / 2, 36, 22, 28, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.rect(W / 2 - 9, 62, 18, 16); ctx.fill();
         const body = new Path2D();
-        body.moveTo(W / 2 - 48, 78);
-        body.bezierCurveTo(W / 2 - 52, 90, W / 2 - 38, 140, W / 2 - 32, 195);
-        body.lineTo(W / 2 - 24, 260);
-        body.lineTo(W / 2 + 24, 260);
-        body.lineTo(W / 2 + 32, 195);
+        body.moveTo(W / 2 - 48, 78); body.bezierCurveTo(W / 2 - 52, 90, W / 2 - 38, 140, W / 2 - 32, 195);
+        body.lineTo(W / 2 - 24, 260); body.lineTo(W / 2 + 24, 260); body.lineTo(W / 2 + 32, 195);
         body.bezierCurveTo(W / 2 + 38, 140, W / 2 + 52, 90, W / 2 + 48, 78);
         body.bezierCurveTo(W / 2 + 34, 68, W / 2 + 15, 64, W / 2, 65);
         body.bezierCurveTo(W / 2 - 15, 64, W / 2 - 34, 68, W / 2 - 48, 78);
         ctx.fill(body);
-
         const al = new Path2D();
-        al.moveTo(W / 2 - 48, 78);
-        al.bezierCurveTo(W / 2 - 68, 120, W / 2 - 74, 190, W / 2 - 62, 248);
-        al.lineTo(W / 2 - 50, 242);
-        al.bezierCurveTo(W / 2 - 60, 188, W / 2 - 52, 122, W / 2 - 34, 94);
-        al.closePath(); ctx.fill(al);
-
+        al.moveTo(W / 2 - 48, 78); al.bezierCurveTo(W / 2 - 68, 120, W / 2 - 74, 190, W / 2 - 62, 248);
+        al.lineTo(W / 2 - 50, 242); al.bezierCurveTo(W / 2 - 60, 188, W / 2 - 52, 122, W / 2 - 34, 94); al.closePath(); ctx.fill(al);
         const ar = new Path2D();
-        ar.moveTo(W / 2 + 48, 78);
-        ar.bezierCurveTo(W / 2 + 68, 120, W / 2 + 74, 190, W / 2 + 62, 248);
-        ar.lineTo(W / 2 + 50, 242);
-        ar.bezierCurveTo(W / 2 + 60, 188, W / 2 + 52, 122, W / 2 + 34, 94);
-        ar.closePath(); ctx.fill(ar);
-
-        ctx.beginPath();
-        ctx.ellipse(W / 2, 260, 32, 14, 0, 0, Math.PI);
-        ctx.fill();
-
+        ar.moveTo(W / 2 + 48, 78); ar.bezierCurveTo(W / 2 + 68, 120, W / 2 + 74, 190, W / 2 + 62, 248);
+        ar.lineTo(W / 2 + 50, 242); ar.bezierCurveTo(W / 2 + 60, 188, W / 2 + 52, 122, W / 2 + 34, 94); ar.closePath(); ctx.fill(ar);
+        ctx.beginPath(); ctx.ellipse(W / 2, 260, 32, 14, 0, 0, Math.PI); ctx.fill();
         const ll = new Path2D();
-        ll.moveTo(W / 2 - 26, 260);
-        ll.bezierCurveTo(W / 2 - 36, 330, W / 2 - 40, 390, W / 2 - 38, 475);
-        ll.lineTo(W / 2 - 14, 475);
-        ll.bezierCurveTo(W / 2 - 14, 388, W / 2 - 10, 326, W / 2 - 2, 260);
-        ll.closePath(); ctx.fill(ll);
-
+        ll.moveTo(W / 2 - 26, 260); ll.bezierCurveTo(W / 2 - 36, 330, W / 2 - 40, 390, W / 2 - 38, 475);
+        ll.lineTo(W / 2 - 14, 475); ll.bezierCurveTo(W / 2 - 14, 388, W / 2 - 10, 326, W / 2 - 2, 260); ll.closePath(); ctx.fill(ll);
         const rl = new Path2D();
-        rl.moveTo(W / 2 + 26, 260);
-        rl.bezierCurveTo(W / 2 + 36, 330, W / 2 + 40, 390, W / 2 + 38, 475);
-        rl.lineTo(W / 2 + 14, 475);
-        rl.bezierCurveTo(W / 2 + 14, 388, W / 2 + 10, 326, W / 2 + 2, 260);
-        rl.closePath(); ctx.fill(rl);
-
-        const tex = new THREE.CanvasTexture(c);
-        tex.needsUpdate = true;
-        return tex;
+        rl.moveTo(W / 2 + 26, 260); rl.bezierCurveTo(W / 2 + 36, 330, W / 2 + 40, 390, W / 2 + 38, 475);
+        rl.lineTo(W / 2 + 14, 475); rl.bezierCurveTo(W / 2 + 14, 388, W / 2 + 10, 326, W / 2 + 2, 260); rl.closePath(); ctx.fill(rl);
+        const t = new THREE.CanvasTexture(c);
+        t.needsUpdate = true;
+        return t;
     }, []);
-
     if (!tex) return null;
     const PH = 1.75, PW = PH * (200 / 480);
     return (
-        <mesh position={[x - PW * 0.6, PH / 2, 0.06]}>
+        <mesh position={[x - PW * 0.55, PH / 2, 0.12]}>
             <planeGeometry args={[PW, PH]} />
-            <meshBasicMaterial map={tex} transparent alphaTest={0.02} depthWrite={false} side={THREE.DoubleSide} />
+            <meshBasicMaterial map={tex} transparent alphaTest={0.015} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
     );
 }
 
-/* ─── 3D Bar handle ─── */
+/* ─── Bar handle ─── */
 function Handle3D({ w, y, z }: { w: number; y: number; z: number }) {
     const barLen = Math.min(w * 0.28, 0.14);
+    const brushed = new THREE.MeshStandardMaterial({ color: '#C8C0B4', roughness: 0.12, metalness: 0.92 });
     return (
         <group position={[0, y, z]}>
-            <mesh rotation={[0, 0, Math.PI / 2]}>
-                <cylinderGeometry args={[0.0045, 0.0045, barLen, 10]} />
-                <meshStandardMaterial color="#B8B0A4" roughness={0.2} metalness={0.8} />
-            </mesh>
-            <mesh position={[-barLen / 2, 0, -0.012]}>
-                <cylinderGeometry args={[0.004, 0.004, 0.022, 8]} />
-                <meshStandardMaterial color="#B8B0A4" roughness={0.2} metalness={0.8} />
-            </mesh>
-            <mesh position={[barLen / 2, 0, -0.012]}>
-                <cylinderGeometry args={[0.004, 0.004, 0.022, 8]} />
-                <meshStandardMaterial color="#B8B0A4" roughness={0.2} metalness={0.8} />
-            </mesh>
+            <mesh rotation={[0, 0, Math.PI / 2]} material={brushed}><cylinderGeometry args={[0.0045, 0.0045, barLen, 12]} /></mesh>
+            <mesh position={[-barLen / 2, 0, -0.013]} material={brushed}><cylinderGeometry args={[0.004, 0.004, 0.024, 8]} /></mesh>
+            <mesh position={[barLen / 2, 0, -0.013]} material={brushed}><cylinderGeometry args={[0.004, 0.004, 0.024, 8]} /></mesh>
         </group>
     );
 }
 
-/* ─── 3D Hinge ─── */
+/* ─── Hinge ─── */
 function Hinge3D({ y }: { y: number }) {
+    const m = new THREE.MeshStandardMaterial({ color: '#A8A098', roughness: 0.25, metalness: 0.75 });
     return (
         <group position={[0, y, 0]}>
-            <mesh position={[-0.022, 0, 0]}>
-                <boxGeometry args={[0.02, 0.032, 0.006]} />
-                <meshStandardMaterial color="#A09888" roughness={0.3} metalness={0.6} />
-            </mesh>
-            <mesh position={[0.008, 0, 0.003]}>
-                <boxGeometry args={[0.024, 0.032, 0.006]} />
-                <meshStandardMaterial color="#A09888" roughness={0.3} metalness={0.6} />
-            </mesh>
-            <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <cylinderGeometry args={[0.005, 0.005, 0.034, 8]} />
-                <meshStandardMaterial color="#888070" roughness={0.2} metalness={0.7} />
-            </mesh>
+            <mesh position={[-0.022, 0, 0]} material={m}><boxGeometry args={[0.02, 0.032, 0.006]} /></mesh>
+            <mesh position={[0.008, 0, 0.003]} material={m}><boxGeometry args={[0.024, 0.032, 0.006]} /></mesh>
+            <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]} material={m}><cylinderGeometry args={[0.005, 0.005, 0.034, 8]} /></mesh>
         </group>
     );
 }
 
-/* ─── Animated door with 3D hinges ─── */
-function Door({ colW, H, openRight, mat }: {
-    colW: number; H: number; openRight: boolean; mat: THREE.Material | null;
-}) {
+/* ─── Animated Door ─── */
+function Door({ colW, H, openRight, extHex }: { colW: number; H: number; openRight: boolean; extHex: string }) {
     const groupRef = useRef<THREE.Group>(null);
     const [open, setOpen] = useState(false);
     const targetY = open ? (openRight ? -Math.PI * 0.47 : Math.PI * 0.47) : 0;
     const curY = useRef(0);
-
     useFrame(() => {
         if (!groupRef.current) return;
         curY.current = THREE.MathUtils.lerp(curY.current, targetY, 0.08);
         groupRef.current.rotation.y = curY.current;
     });
-
+    const mat = useMemo(() => getWoodMat(extHex, 0.68), [extHex]);
     const dw = colW - 2 * T - 0.002;
     const dh = H - T * 2 - 0.004;
     const hingeX = openRight ? -colW / 2 + T : colW / 2 - T;
-
     return (
         <group ref={groupRef} position={[hingeX, 0, 0]}>
-            <mesh
-                position={[openRight ? dw / 2 : -dw / 2, dh / 2 + T, T / 2]}
+            <mesh position={[openRight ? dw / 2 : -dw / 2, dh / 2 + T, T / 2]}
                 onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
-                castShadow
-                material={mat ?? undefined}
-            >
+                castShadow material={mat}>
                 <boxGeometry args={[dw, dh, T]} />
-                {!mat && <meshStandardMaterial color="#E8DFC8" roughness={0.85} />}
             </mesh>
-            {[0.2, 0.8].map((f, i) => (
-                <Hinge3D key={i} y={dh * f + T} />
-            ))}
+            {[0.2, 0.8].map((f, i) => <Hinge3D key={i} y={dh * f + T} />)}
             <Handle3D w={dw} y={dh * 0.42 + T} z={T + 0.018} />
         </group>
     );
 }
 
-/* ─── Animated drawer ─── */
-function Drawer({ colW, D, h, y, mat }: {
-    colW: number; D: number; h: number; y: number; mat: THREE.Material | null;
-}) {
+/* ─── Animated Drawer ─── */
+function Drawer({ colW, D, h, y, extHex }: { colW: number; D: number; h: number; y: number; extHex: string }) {
     const ref = useRef<THREE.Group>(null);
     const [open, setOpen] = useState(false);
     const slideZ = D * 0.82;
     const curZ = useRef(0);
     const tw = colW - 2 * T - 0.004;
     const td = D - T;
-
+    const mat = useMemo(() => getWoodMat(extHex, 0.68), [extHex]);
+    const sideMat = new THREE.MeshStandardMaterial({ color: '#C8C0B0', roughness: 0.85 });
     useFrame(() => {
         if (!ref.current) return;
         curZ.current = THREE.MathUtils.lerp(curZ.current, open ? slideZ : 0, 0.08);
         ref.current.position.z = curZ.current;
     });
-
     return (
         <group ref={ref} position={[0, y + h / 2, 0]}>
-            <mesh
-                position={[0, 0, T / 2]}
-                onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
-                castShadow
-                material={mat ?? undefined}
-            >
+            <mesh position={[0, 0, T / 2]} onClick={e => { e.stopPropagation(); setOpen(o => !o); }} castShadow material={mat}>
                 <boxGeometry args={[tw, h - 0.003, T]} />
-                {!mat && <meshStandardMaterial color="#E8DFC8" roughness={0.85} />}
             </mesh>
             <Handle3D w={tw} y={0} z={T + 0.018} />
-            <mesh position={[0, -h / 2 + 0.008, -td / 2]}>
-                <boxGeometry args={[tw - 0.008, 0.012, td]} />
-                <meshStandardMaterial color={EDGE} roughness={0.9} />
-            </mesh>
-            <mesh position={[-tw / 2 + 0.006, 0, -td / 2]}>
-                <boxGeometry args={[0.012, h * 0.85, td]} />
-                <meshStandardMaterial color={EDGE} roughness={0.9} />
-            </mesh>
-            <mesh position={[tw / 2 - 0.006, 0, -td / 2]}>
-                <boxGeometry args={[0.012, h * 0.85, td]} />
-                <meshStandardMaterial color={EDGE} roughness={0.9} />
-            </mesh>
-            <mesh position={[0, 0, -td + 0.006]}>
-                <boxGeometry args={[tw - 0.02, h * 0.85, 0.012]} />
-                <meshStandardMaterial color={EDGE} roughness={0.9} />
-            </mesh>
+            <mesh position={[0, -h / 2 + 0.008, -td / 2]} material={sideMat}><boxGeometry args={[tw - 0.008, 0.012, td]} /></mesh>
+            <mesh position={[-tw / 2 + 0.006, 0, -td / 2]} material={sideMat}><boxGeometry args={[0.012, h * 0.85, td]} /></mesh>
+            <mesh position={[tw / 2 - 0.006, 0, -td / 2]} material={sideMat}><boxGeometry args={[0.012, h * 0.85, td]} /></mesh>
+            <mesh position={[0, 0, -td + 0.006]} material={sideMat}><boxGeometry args={[tw - 0.02, h * 0.85, 0.012]} /></mesh>
         </group>
     );
 }
 
-/* ─── One wardrobe column ─── */
-function Column({
-    x, colW, H, D, extColor, intColor, backPanel, variant,
-}: {
-    x: number; colW: number; H: number; D: number;
-    extColor: string; intColor: string; backPanel: boolean;
-    variant: 'open' | 'shelves' | 'drawers' | 'door';
-}) {
-    const extMat = useWoodMaterial(extColor, 0.82);
-    const intMat = useWoodMaterial(intColor, 0.88);
+/* ─── Plinth ─── */
+function Plinth({ colW, D, extHex }: { colW: number; D: number; extHex: string }) {
+    const mat = useMemo(() => getWoodMat(extHex, 0.88), [extHex]);
+    return (
+        <mesh position={[0, 0.045, 0]} material={mat} castShadow receiveShadow>
+            <boxGeometry args={[colW - 0.002, 0.09, D * 0.7]} />
+        </mesh>
+    );
+}
+
+/* ─── One Column ─── */
+function Column({ x, colW, H, D, extHex, intHex, backPanel, variant }:
+    { x: number; colW: number; H: number; D: number; extHex: string; intHex: string; backPanel: boolean; variant: 'open' | 'shelves' | 'drawers' | 'door' }) {
+    const extMat = useMemo(() => getWoodMat(extHex, 0.72), [extHex]);
+    const intMat = useMemo(() => getWoodMat(intHex, 0.82), [intHex]);
     const innerW = colW - 2 * T;
     const innerD = D - T;
 
     return (
         <group position={[x, 0, 0]}>
-            {/* Left panel */}
-            <mesh position={[-colW / 2 + T / 2, H / 2, 0]} castShadow receiveShadow material={extMat ?? undefined}>
-                <boxGeometry args={[T, H, D]} />
-                {!extMat && <meshStandardMaterial color={extColor} roughness={0.85} />}
-            </mesh>
-            {/* Right panel */}
-            <mesh position={[colW / 2 - T / 2, H / 2, 0]} castShadow receiveShadow material={extMat ?? undefined}>
-                <boxGeometry args={[T, H, D]} />
-                {!extMat && <meshStandardMaterial color={extColor} roughness={0.85} />}
-            </mesh>
-            {/* Top panel */}
-            <mesh position={[0, H - T / 2, 0]} castShadow material={extMat ?? undefined}>
-                <boxGeometry args={[innerW, T, D]} />
-                {!extMat && <meshStandardMaterial color={extColor} roughness={0.85} />}
-            </mesh>
-            {/* Bottom panel */}
-            <mesh position={[0, T / 2, 0]} castShadow material={extMat ?? undefined}>
-                <boxGeometry args={[innerW, T, D]} />
-                {!extMat && <meshStandardMaterial color={extColor} roughness={0.85} />}
-            </mesh>
-            {/* Back panel */}
+            <mesh position={[-colW / 2 + T / 2, H / 2, 0]} castShadow receiveShadow material={extMat}><boxGeometry args={[T, H, D]} /></mesh>
+            <mesh position={[colW / 2 - T / 2, H / 2, 0]} castShadow receiveShadow material={extMat}><boxGeometry args={[T, H, D]} /></mesh>
+            <mesh position={[0, H - T / 2, 0]} castShadow material={extMat}><boxGeometry args={[innerW, T, D]} /></mesh>
+            <mesh position={[0, T / 2, 0]} castShadow material={extMat}><boxGeometry args={[innerW, T, D]} /></mesh>
             {backPanel && (
-                <mesh position={[0, H / 2, -D / 2 + 0.005]} material={intMat ?? undefined}>
+                <mesh position={[0, H / 2, -D / 2 + 0.005]} material={intMat}>
                     <boxGeometry args={[innerW, H - 2 * T, 0.006]} />
-                    {!intMat && <meshStandardMaterial color={intColor} roughness={0.9} />}
                 </mesh>
             )}
+            <Plinth colW={colW} D={D} extHex={extHex} />
 
-            {/* ── INTERIOR VARIANTS ── */}
             {variant === 'shelves' && [0.33, 0.54, 0.73].map((f, i) => (
-                <mesh key={i} position={[0, H * f, 0]} material={intMat ?? undefined}>
-                    <boxGeometry args={[innerW - 0.002, T * 0.8, innerD]} />
-                    {!intMat && <meshStandardMaterial color={intColor} roughness={0.9} />}
+                <mesh key={i} position={[0, H * f, 0]} receiveShadow material={intMat}>
+                    <boxGeometry args={[innerW - 0.002, T * 0.85, innerD]} />
                 </mesh>
             ))}
 
             {variant === 'drawers' && (() => {
-                const usableH = H - 2 * T;
-                const n = 4;
-                const gap = 0.004;
-                const dh = (usableH - gap * (n + 1)) / n;
+                const n = 4, gap = 0.004;
+                const dh = (H - 2 * T - gap * (n + 1)) / n;
                 return Array.from({ length: n }).map((_, i) => (
-                    <Drawer
-                        key={i}
-                        colW={colW} D={D}
-                        h={dh}
-                        y={T + gap + i * (dh + gap)}
-                        mat={extMat}
-                    />
+                    <Drawer key={i} colW={colW} D={D} h={dh} y={T + gap + i * (dh + gap)} extHex={extHex} />
                 ));
             })()}
 
-            {variant === 'door' && (
-                <Door colW={colW} H={H} openRight mat={extMat} />
-            )}
+            {variant === 'door' && <Door colW={colW} H={H} openRight extHex={extHex} />}
 
             {variant === 'open' && (
-                /* Hanging rail */
-                <mesh position={[0, H * 0.82, -D * 0.15]} rotation={[0, 0, Math.PI / 2]}>
-                    <cylinderGeometry args={[0.007, 0.007, innerW - 0.02, 12]} />
-                    <meshStandardMaterial color="#BAB2A8" roughness={0.25} metalness={0.55} />
+                <mesh position={[0, H * 0.82, -D * 0.15]} rotation={[0, 0, Math.PI / 2]} castShadow>
+                    <cylinderGeometry args={[0.007, 0.007, innerW - 0.02, 14]} />
+                    <meshStandardMaterial color="#C8C0B4" roughness={0.12} metalness={0.75} />
                 </mesh>
             )}
         </group>
     );
 }
 
-/* ─── Auto-frame camera to 3/4 perspective (Tylko angle) ─── */
-function CameraFramer({ W, H }: { W: number; H: number }) {
+/* ─── Auto-frame camera ─── */
+function CameraFramer({ W, H, columns }: { W: number; H: number; columns: number }) {
     const { camera } = useThree();
     useEffect(() => {
-        const fov = (camera as THREE.PerspectiveCamera).fov ?? 32;
-        const diag = Math.sqrt(W * W + H * H);
-        const dist = (diag / 2) / Math.tan((fov * Math.PI) / 360) * 1.28;
-        // 3/4 angle: camera left of center, looking at right-front corner
-        camera.position.set(-W * 0.35, H * 0.58, dist * 0.92);
-        camera.lookAt(W * 0.1, H * 0.42, 0);
+        const fov = (camera as THREE.PerspectiveCamera).fov ?? 28;
+        const diag = Math.sqrt((W * 1.1) ** 2 + H ** 2);
+        const dist = (diag / 2) / Math.tan((fov * Math.PI) / 360) * 1.22;
+        // Sexy 3/4 angle — lower horizon, more dramatic
+        camera.position.set(-W * 0.28, H * 0.38, dist * 0.88);
+        camera.lookAt(W * 0.06, H * 0.40, 0);
         camera.updateProjectionMatrix();
-    }, [W, H, camera]);
+    }, [W, H, columns, camera]);
     return null;
 }
 
-/* ─── Lighting ─── */
-function SceneSetup() {
-    const { scene } = useThree();
-    useEffect(() => {
-        scene.background = new THREE.Color('#EDEBE8');
-        scene.fog = new THREE.Fog('#EDEBE8', 14, 28);
-        const amb = new THREE.AmbientLight(0xffffff, 0.85);
-        const key = new THREE.DirectionalLight(0xfff9f4, 1.15);
-        key.position.set(5, 9, 7); key.castShadow = true;
-        key.shadow.mapSize.setScalar(2048);
-        key.shadow.camera.near = 0.5;
-        key.shadow.camera.far = 30;
-        key.shadow.camera.left = -6; key.shadow.camera.right = 6;
-        key.shadow.camera.top = 6; key.shadow.camera.bottom = -6;
-        const fill = new THREE.DirectionalLight(0xeef0ff, 0.32);
-        fill.position.set(-4, 4, -3);
-        scene.add(amb, key, fill);
-        return () => { scene.remove(amb, key, fill); };
-    }, [scene]);
-    return null;
-}
-
-/* ─── Pencil overlay per column ─── */
+/* ─── Column edit icon ─── */
 function ColumnEditIcon({ x, idx, onEdit }: { x: number; idx: number; onEdit: (i: number) => void }) {
     return (
         <Html position={[x, -0.05, 0.05]} center zIndexRange={[10, 20]} style={{ pointerEvents: 'none' }}>
-            <button
-                onClick={e => { e.stopPropagation(); onEdit(idx); }}
-                style={{
-                    width: 30, height: 30, borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.94)', border: '1px solid rgba(0,0,0,0.10)',
-                    boxShadow: '0 1px 6px rgba(0,0,0,0.12)', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, color: '#444', pointerEvents: 'auto',
-                }}
-            >✎</button>
+            <button onClick={e => { e.stopPropagation(); onEdit(idx); }}
+                style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.96)', border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.14)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#444', pointerEvents: 'auto' }}>
+                ✎
+            </button>
         </Html>
     );
 }
@@ -442,52 +477,51 @@ function ColumnEditIcon({ x, idx, onEdit }: { x: number; idx: number; onEdit: (i
 export interface ConfiguratorProps {
     exteriorColor: string;
     interiorColor: string;
-    width: number;   // mm
-    height: number;  // mm
-    depth: number;   // mm
+    width: number;
+    height: number;
+    depth: number;
     columns: number;
     backPanel: boolean;
     columnVariants: ('open' | 'shelves' | 'drawers' | 'door')[];
-    onColumnEdit?: (colIndex: number) => void;
+    onColumnEdit?: (i: number) => void;
 }
 
 export default function ThreeViewer(props: ConfiguratorProps) {
     const { exteriorColor, interiorColor, width, height, depth, columns, backPanel, columnVariants, onColumnEdit } = props;
-
-    const W = width / 1000;
-    const H = height / 1000;
-    const D = depth / 1000;
-
+    const W = width / 1000, H = height / 1000, D = depth / 1000;
     const colW = W / columns;
     const startX = -(W / 2) + colW / 2;
 
     return (
         <Canvas
-            shadows
-            camera={{ position: [-0.8, 1.4, 3.2], fov: 32 }}
-            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
+            shadows={{ type: THREE.PCFSoftShadowMap }}
+            camera={{ position: [-0.8, 0.9, 3.0], fov: 28 }}
+            gl={{
+                antialias: true,
+                toneMapping: THREE.ACESFilmicToneMapping,
+                toneMappingExposure: 1.18,
+                outputColorSpace: THREE.SRGBColorSpace,
+            }}
             style={{ width: '100%', height: '100%' }}
         >
-            <SceneSetup />
-            <CameraFramer W={W} H={H} />
-            <InfiniteRoom />
+            <ProceduralEnvironment />
+            <StudioLights cabinetW={W} cabinetH={H} />
+            <CameraFramer W={W} H={H} columns={columns} />
+
+            <Floor />
+            <BackWall cabinetH={H} />
+
+            <fog attach="fog" args={['#EDEAE4', 10, 28]} />
 
             {Array.from({ length: columns }).map((_, i) => {
                 const variant = columnVariants[i] ?? 'shelves';
                 const cx = startX + i * colW;
                 return (
                     <group key={i}>
-                        <Column
-                            x={cx} colW={colW}
-                            H={H} D={D}
-                            extColor={exteriorColor}
-                            intColor={interiorColor}
-                            backPanel={backPanel}
-                            variant={variant}
-                        />
-                        {onColumnEdit && (
-                            <ColumnEditIcon x={cx} idx={i} onEdit={onColumnEdit} />
-                        )}
+                        <Column x={cx} colW={colW} H={H} D={D}
+                            extHex={exteriorColor} intHex={interiorColor}
+                            backPanel={backPanel} variant={variant} />
+                        {onColumnEdit && <ColumnEditIcon x={cx} idx={i} onEdit={onColumnEdit} />}
                     </group>
                 );
             })}
@@ -495,11 +529,11 @@ export default function ThreeViewer(props: ConfiguratorProps) {
             <HumanSilhouette x={-W / 2} />
 
             <OrbitControls
-                enableDamping dampingFactor={0.05}
-                minPolarAngle={Math.PI * 0.08}
-                maxPolarAngle={Math.PI * 0.48}
-                minDistance={0.8} maxDistance={20}
-                target={[0, H * 0.45, 0]}
+                enableDamping dampingFactor={0.06}
+                minPolarAngle={Math.PI * 0.06}
+                maxPolarAngle={Math.PI * 0.46}
+                minDistance={0.6} maxDistance={18}
+                target={[0, H * 0.40, 0]}
                 enablePan={false}
             />
         </Canvas>
