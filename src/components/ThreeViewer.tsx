@@ -1,271 +1,323 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF, ContactShadows } from '@react-three/drei';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
 
-/* ─── Selective material application ─── */
-function applyMaterials(obj: THREE.Object3D, extColor: string, intColor: string, roughness: number, metalness: number) {
-    const ext = new THREE.Color(extColor);
-    const int_ = new THREE.Color(intColor);
-    const INTERIOR = /interior|inside|inner|innere|interieur/i;
-    const HARDWARE = /hardware|hinge|rail|screw|handle|knob|bolt|cam|minifix/i;
-    obj.traverse((child) => {
-        if (!(child instanceof THREE.Mesh)) return;
-        if (HARDWARE.test(child.name)) return;
-        const isInt = INTERIOR.test(child.name);
-        child.castShadow = true;
-        child.receiveShadow = true;
-        const patch = (m: THREE.Material) => {
-            if (!(m instanceof THREE.MeshStandardMaterial)) return;
-            m.color.set(isInt ? int_ : ext);
-            m.roughness = isInt ? 0.9 : roughness;
-            m.metalness = isInt ? 0 : metalness;
-            m.needsUpdate = true;
-        };
-        if (Array.isArray(child.material)) child.material.forEach(patch);
-        else patch(child.material);
-    });
-}
+/* ─── Palette ─── */
+const WALL_COLOR = '#E8E5E0';
+const FLOOR_COLOR = '#D8D4CE';
+const EDGE_COLOR = 0xD4C8B8; // visible MDF edge (birch-ply look)
 
-/* ─── SVG Human Silhouette — vector-quality, drawn on canvas ─── */
-function buildSilhouetteTexture(): THREE.CanvasTexture {
-    const W = 320, H = 640;
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    const ctx = c.getContext('2d')!;
-    const cx = W / 2;
-
-    ctx.fillStyle = 'rgba(90,90,90,0.5)';
-
-    // HEAD
-    ctx.beginPath();
-    ctx.ellipse(cx, 55, 36, 44, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // NECK
-    ctx.beginPath();
-    ctx.roundRect(cx - 16, 95, 32, 30, 4);
-    ctx.fill();
-
-    // TORSO (shoulder width tapers to waist)
-    const torso = new Path2D();
-    torso.moveTo(cx - 72, 122);         // left shoulder
-    torso.bezierCurveTo(cx - 75, 130, cx - 56, 165, cx - 48, 200);  // left side
-    torso.bezierCurveTo(cx - 44, 215, cx - 38, 270, cx - 36, 292);  // left hip
-    torso.lineTo(cx + 36, 292);         // waist
-    torso.bezierCurveTo(cx + 38, 270, cx + 44, 215, cx + 48, 200);
-    torso.bezierCurveTo(cx + 56, 165, cx + 75, 130, cx + 72, 122);
-    torso.bezierCurveTo(cx + 52, 110, cx + 24, 104, cx, 104);
-    torso.bezierCurveTo(cx - 24, 104, cx - 52, 110, cx - 72, 122);
-    ctx.fill(torso);
-
-    // LEFT ARM
-    const armL = new Path2D();
-    armL.moveTo(cx - 72, 122);
-    armL.bezierCurveTo(cx - 92, 155, cx - 100, 220, cx - 90, 290);
-    armL.bezierCurveTo(cx - 88, 300, cx - 84, 308, cx - 80, 312);
-    armL.lineTo(cx - 64, 308);
-    armL.bezierCurveTo(cx - 70, 298, cx - 72, 282, cx - 72, 260);
-    armL.bezierCurveTo(cx - 70, 210, cx - 58, 158, cx - 52, 138);
-    armL.closePath();
-    ctx.fill(armL);
-
-    // RIGHT ARM
-    const armR = new Path2D();
-    armR.moveTo(cx + 72, 122);
-    armR.bezierCurveTo(cx + 92, 155, cx + 100, 220, cx + 90, 290);
-    armR.bezierCurveTo(cx + 88, 300, cx + 84, 308, cx + 80, 312);
-    armR.lineTo(cx + 64, 308);
-    armR.bezierCurveTo(cx + 70, 298, cx + 72, 282, cx + 72, 260);
-    armR.bezierCurveTo(cx + 70, 210, cx + 58, 158, cx + 52, 138);
-    armR.closePath();
-    ctx.fill(armR);
-
-    // HIPS/PELVIS connector
-    ctx.beginPath();
-    ctx.ellipse(cx, 292, 48, 20, 0, 0, Math.PI);
-    ctx.fill();
-
-    // LEFT LEG
-    const legL = new Path2D();
-    legL.moveTo(cx - 36, 292);
-    legL.bezierCurveTo(cx - 50, 360, cx - 58, 430, cx - 54, 515);
-    legL.bezierCurveTo(cx - 54, 525, cx - 52, 532, cx - 48, 536);
-    legL.lineTo(cx - 16, 536);
-    legL.bezierCurveTo(cx - 18, 524, cx - 20, 498, cx - 18, 470);
-    legL.bezierCurveTo(cx - 16, 430, cx - 10, 370, cx - 2, 292);
-    legL.closePath();
-    ctx.fill(legL);
-
-    // RIGHT LEG
-    const legR = new Path2D();
-    legR.moveTo(cx + 36, 292);
-    legR.bezierCurveTo(cx + 50, 360, cx + 58, 430, cx + 54, 515);
-    legR.bezierCurveTo(cx + 54, 525, cx + 52, 532, cx + 48, 536);
-    legR.lineTo(cx + 16, 536);
-    legR.bezierCurveTo(cx + 18, 524, cx + 20, 498, cx + 18, 470);
-    legR.bezierCurveTo(cx + 16, 430, cx + 10, 370, cx + 2, 292);
-    legR.closePath();
-    ctx.fill(legR);
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.needsUpdate = true;
-    return tex;
-}
-
-/* ─── Human silhouette plane — 1.75m in 3D space, moves with scene ─── */
-function HumanSilhouette({ offsetX }: { offsetX: number }) {
-    const texture = useMemo(() => typeof window !== 'undefined' ? buildSilhouetteTexture() : null, []);
-    if (!texture) return null;
-    const HUMAN_H = 1.75; // meters
-    const HUMAN_W = HUMAN_H * (320 / 640);
+/* ─── Room ─── */
+function Room({ W }: { W: number }) {
+    const roomW = W + 2.0;
     return (
-        <mesh position={[offsetX - HUMAN_W / 2 - 0.08, HUMAN_H / 2, 0.02]}>
-            <planeGeometry args={[HUMAN_W, HUMAN_H]} />
-            <meshBasicMaterial map={texture} transparent alphaTest={0.04} depthWrite={false} side={THREE.DoubleSide} />
-        </mesh>
-    );
-}
-
-/* ─── Single wardrobe module ─── */
-interface ModuleProps {
-    pos: [number, number, number];
-    extColor: string; intColor: string;
-    roughness: number; metalness: number;
-    scaleY: number; scaleZ: number;
-    onWidth: (w: number) => void;
-}
-
-function WardrobeModule({ pos, extColor, intColor, roughness, metalness, scaleY, scaleZ, onWidth }: ModuleProps) {
-    const { scene } = useGLTF('/models/dulap.glb');
-    const measured = useRef(false);
-
-    const cloned = useMemo(() => {
-        const clone = scene.clone(true);
-        clone.traverse(ch => {
-            if (ch instanceof THREE.Mesh) {
-                ch.material = Array.isArray(ch.material) ? ch.material.map(m => m.clone()) : ch.material.clone();
-            }
-        });
-        return clone;
-    }, [scene]);
-
-    useEffect(() => {
-        // Measure exact GLB width from bounding box (once)
-        if (!measured.current) {
-            const box = new THREE.Box3().setFromObject(scene);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            onWidth(size.x); // report actual width to parent
-            measured.current = true;
-        }
-        applyMaterials(cloned, extColor, intColor, roughness, metalness);
-    }, [cloned, extColor, intColor, roughness, metalness, scene, onWidth]);
-
-    return (
-        <group position={pos} scale={[1, scaleY, scaleZ]}>
-            <primitive object={cloned} />
+        <group>
+            {/* Floor */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0.4]} receiveShadow>
+                <planeGeometry args={[roomW, 4]} />
+                <meshStandardMaterial color={FLOOR_COLOR} roughness={0.95} />
+            </mesh>
+            {/* Wall */}
+            <mesh position={[0, 1.4, -0.34]} receiveShadow>
+                <planeGeometry args={[roomW, 2.8]} />
+                <meshStandardMaterial color={WALL_COLOR} roughness={1} />
+            </mesh>
         </group>
     );
 }
 
-/* ─── Room: wall + floor ─── */
-function Room({ totalWidth, scaleY }: { totalWidth: number; scaleY: number }) {
-    const wallMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#DEDAD4', roughness: 1, metalness: 0 }), []);
-    const floorMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#CBC6BE', roughness: 0.9, metalness: 0 }), []);
-    const roomW = totalWidth + 2.2;
-    const roomH = 2.1 * scaleY + 0.8;
+/* ─── Human silhouette — bezier canvas, in 3D scene ─── */
+function HumanSilhouette({ x }: { x: number }) {
+    const tex = useMemo(() => {
+        if (typeof window === 'undefined') return null;
+        const W = 256, H = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d')!;
+        const cx = W / 2;
+        ctx.fillStyle = 'rgba(100,100,100,0.42)';
+        // Head
+        ctx.beginPath(); ctx.ellipse(cx, 52, 30, 38, 0, 0, Math.PI * 2); ctx.fill();
+        // Neck
+        ctx.beginPath(); ctx.rect(cx - 13, 87, 26, 22); ctx.fill();
+        // Torso
+        const t = new Path2D();
+        t.moveTo(cx - 65, 108); t.bezierCurveTo(cx - 68, 120, cx - 50, 165, cx - 44, 200);
+        t.lineTo(cx - 34, 285); t.lineTo(cx + 34, 285);
+        t.lineTo(cx + 44, 200); t.bezierCurveTo(cx + 50, 165, cx + 68, 120, cx + 65, 108);
+        t.bezierCurveTo(cx + 46, 97, cx + 20, 92, cx, 92);
+        t.bezierCurveTo(cx - 20, 92, cx - 46, 97, cx - 65, 108);
+        ctx.fill(t);
+        // Left arm
+        const al = new Path2D();
+        al.moveTo(cx - 65, 108); al.bezierCurveTo(cx - 86, 145, cx - 94, 218, cx - 82, 278);
+        al.lineTo(cx - 66, 272); al.bezierCurveTo(cx - 76, 216, cx - 66, 148, cx - 48, 124);
+        al.closePath(); ctx.fill(al);
+        // Right arm
+        const ar = new Path2D();
+        ar.moveTo(cx + 65, 108); ar.bezierCurveTo(cx + 86, 145, cx + 94, 218, cx + 82, 278);
+        ar.lineTo(cx + 66, 272); ar.bezierCurveTo(cx + 76, 216, cx + 66, 148, cx + 48, 124);
+        ar.closePath(); ctx.fill(ar);
+        // Hips
+        ctx.beginPath(); ctx.ellipse(cx, 285, 44, 18, 0, 0, Math.PI); ctx.fill();
+        // Left leg
+        const ll = new Path2D();
+        ll.moveTo(cx - 34, 285); ll.bezierCurveTo(cx - 46, 355, cx - 52, 420, cx - 50, 505);
+        ll.lineTo(cx - 22, 505); ll.bezierCurveTo(cx - 22, 418, cx - 18, 350, cx - 6, 285);
+        ll.closePath(); ctx.fill(ll);
+        // Right leg
+        const rl = new Path2D();
+        rl.moveTo(cx + 34, 285); rl.bezierCurveTo(cx + 46, 355, cx + 52, 420, cx + 50, 505);
+        rl.lineTo(cx + 22, 505); rl.bezierCurveTo(cx + 22, 418, cx + 18, 350, cx + 6, 285);
+        rl.closePath(); ctx.fill(rl);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.needsUpdate = true;
+        return tex;
+    }, []);
+
+    if (!tex) return null;
+    const H = 1.75, W = H * 0.5;
     return (
-        <>
-            <mesh position={[0, roomH / 2 - 0.3, -0.35]} receiveShadow material={wallMat}>
-                <planeGeometry args={[roomW, roomH + 0.6]} />
-            </mesh>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0.3]} receiveShadow material={floorMat}>
-                <planeGeometry args={[roomW, 3.5]} />
-            </mesh>
-        </>
+        <mesh position={[x - W * 0.8, H / 2, 0.02]}>
+            <planeGeometry args={[W, H]} />
+            <meshBasicMaterial map={tex} transparent alphaTest={0.04} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
     );
 }
 
-/* ─── Scene lighting ─── */
+/* ─── Shared material factory ─── */
+function useMat(color: string, roughness = 0.85, metalness = 0): THREE.MeshStandardMaterial {
+    return useMemo(() => new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness, metalness }), [color, roughness, metalness]);
+}
+
+/* ─── Animated door ─── */
+function Door({ w, h, hingeX, openRight, color, thickness }: {
+    w: number; h: number; hingeX: number; openRight: boolean;
+    color: string; thickness: number;
+}) {
+    const groupRef = useRef<THREE.Group>(null);
+    const [open, setOpen] = useState(false);
+    const targetY = open ? (openRight ? -Math.PI * 0.48 : Math.PI * 0.48) : 0;
+    const currentY = useRef(0);
+    const mat = useMat(color);
+    const edgeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: EDGE_COLOR, roughness: 0.9 }), []);
+
+    useFrame(() => {
+        if (!groupRef.current) return;
+        currentY.current = THREE.MathUtils.lerp(currentY.current, targetY, 0.1);
+        groupRef.current.rotation.y = currentY.current;
+    });
+
+    return (
+        <group ref={groupRef} position={[hingeX, 0, 0]}>
+            {/* Panel */}
+            <mesh
+                position={[openRight ? w / 2 : -w / 2, h / 2, thickness / 2]}
+                onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                castShadow
+            >
+                <boxGeometry args={[w, h, thickness]} />
+                <meshStandardMaterial color={color} roughness={0.85} />
+            </mesh>
+            {/* Handle */}
+            <mesh position={[openRight ? w * 0.85 : -w * 0.85, h * 0.42, thickness + 0.005]}>
+                <boxGeometry args={[0.008, 0.12, 0.01]} />
+                <meshStandardMaterial color="#888" roughness={0.3} metalness={0.7} />
+            </mesh>
+        </group>
+    );
+}
+
+/* ─── Animated drawer ─── */
+function Drawer({ w, h, d, y, color, thickness }: { w: number; h: number; d: number; y: number; color: string; thickness: number; }) {
+    const ref = useRef<THREE.Group>(null);
+    const [open, setOpen] = useState(false);
+    const slideOut = d * 0.85; // drawer slides out by 85% of cabinet depth
+    const targetZ = open ? slideOut : 0;
+    const currentZ = useRef(0);
+
+    useFrame(() => {
+        if (!ref.current) return;
+        currentZ.current = THREE.MathUtils.lerp(currentZ.current, targetZ, 0.1);
+        ref.current.position.z = currentZ.current;
+    });
+
+    return (
+        <group ref={ref} position={[0, y, 0]}>
+            {/* Front face */}
+            <mesh position={[0, 0, thickness / 2]} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }} castShadow>
+                <boxGeometry args={[w, h - 0.006, thickness]} />
+                <meshStandardMaterial color={color} roughness={0.85} />
+            </mesh>
+            {/* Handle — horizontal bar centered */}
+            <mesh position={[0, 0, thickness + 0.006]}>
+                <boxGeometry args={[w * 0.28, 0.009, 0.012]} />
+                <meshStandardMaterial color="#A0968A" roughness={0.25} metalness={0.65} />
+            </mesh>
+            {/* Drawer box body (sides, bottom, back) — visible while open */}
+            <mesh position={[0, -(h * 0.22), -(d * 0.4)]}>
+                <boxGeometry args={[w - 0.012, h * 0.55, d * 0.8]} />
+                <meshStandardMaterial color="#E0D8CC" roughness={0.92} side={THREE.BackSide} />
+            </mesh>
+        </group>
+    );
+}
+
+/* ─── One wardrobe column ─── */
+function Column({
+    x, colW, H, D, T, extColor, intColor, backPanel,
+    variant, // 'open' | 'shelves' | 'drawers' | 'door'
+}: {
+    x: number; colW: number; H: number; D: number; T: number;
+    extColor: string; intColor: string; backPanel: boolean;
+    variant: 'open' | 'shelves' | 'drawers' | 'door';
+}) {
+    const ext = useMat(extColor);
+    const int_ = useMat(intColor);
+    const back = useMat('#E8E0D8');
+
+    const panelArgs = (w: number, h: number, d: number): [number, number, number] => [w, h, d];
+
+    return (
+        <group position={[x, 0, 0]}>
+            {/* Left side (only leftmost column has unique left panel, others share internal divider) */}
+            <mesh position={[-colW / 2 + T / 2, H / 2, 0]} castShadow receiveShadow material={ext}>
+                <boxGeometry args={panelArgs(T, H, D)} />
+            </mesh>
+            {/* Right side */}
+            <mesh position={[colW / 2 - T / 2, H / 2, 0]} castShadow receiveShadow material={ext}>
+                <boxGeometry args={panelArgs(T, H, D)} />
+            </mesh>
+            {/* Top */}
+            <mesh position={[0, H - T / 2, 0]} castShadow material={ext}>
+                <boxGeometry args={panelArgs(colW - 2 * T, T, D)} />
+            </mesh>
+            {/* Bottom */}
+            <mesh position={[0, T / 2, 0]} castShadow material={ext}>
+                <boxGeometry args={panelArgs(colW - 2 * T, T, D)} />
+            </mesh>
+            {/* Back panel */}
+            {backPanel && (
+                <mesh position={[0, H / 2, -D / 2 + 0.006]} castShadow material={back}>
+                    <boxGeometry args={panelArgs(colW - 2 * T, H - 2 * T, 0.006)} />
+                </mesh>
+            )}
+
+            {/* INTERIOR CONTENT */}
+            {variant === 'shelves' && [0.35, 0.55, 0.72].map((frac, i) => (
+                <mesh key={i} position={[0, H * frac, 0]} material={int_}>
+                    <boxGeometry args={panelArgs(colW - 2 * T - 0.002, T * 0.8, D - T)} />
+                </mesh>
+            ))}
+
+            {variant === 'drawers' && [0.12, 0.26, 0.42, 0.58].map((frac, i) => (
+                <Drawer key={i} w={colW - 2 * T - 0.005} h={H * 0.13} d={D} y={H * frac} color={extColor} thickness={T} />
+            ))}
+
+            {variant === 'door' && (
+                <Door
+                    w={colW - 2 * T - 0.003} h={H - T * 2.2 - 0.004}
+                    hingeX={-colW / 2 + T}
+                    openRight={true}
+                    color={extColor}
+                    thickness={T * 0.85}
+                />
+            )}
+
+            {variant === 'open' && (
+                /* Hanging rail — rotation on mesh, NOT on geometry */
+                <mesh position={[0, H * 0.82, 0]} rotation={[0, 0, Math.PI / 2]}>
+                    <cylinderGeometry args={[0.006, 0.006, colW - 2 * T - 0.02, 8]} />
+                    <meshStandardMaterial color="#B0A898" roughness={0.3} metalness={0.5} />
+                </mesh>
+            )}
+        </group>
+    );
+}
+
+/* ─── Lighting ─── */
 function SceneSetup() {
     const { scene } = useThree();
     useEffect(() => {
-        scene.background = new THREE.Color('#E8E4DC');
-        const ambient = new THREE.AmbientLight(0xffffff, 0.85);
-        const key = new THREE.DirectionalLight(0xfffaf4, 1.2);
-        key.position.set(3, 6, 5); key.castShadow = true;
+        scene.background = new THREE.Color('#EDEBE6');
+        const amb = new THREE.AmbientLight(0xffffff, 0.9);
+        const key = new THREE.DirectionalLight(0xfff8f4, 1.1);
+        key.position.set(4, 7, 6); key.castShadow = true;
         key.shadow.mapSize.setScalar(1024);
-        const fill = new THREE.DirectionalLight(0xf0f4ff, 0.3);
+        key.shadow.camera.near = 0.5; key.shadow.camera.far = 20;
+        const fill = new THREE.DirectionalLight(0xf0f4ff, 0.28);
         fill.position.set(-4, 3, -2);
-        scene.add(ambient, key, fill);
-        return () => { scene.remove(ambient, key, fill); };
+        scene.add(amb, key, fill);
+        return () => { scene.remove(amb, key, fill); };
     }, [scene]);
     return null;
 }
 
-/* ─── Multi-module scene ─── */
-const BASE_H = 2100, BASE_D = 600;
-
-interface Props {
-    exteriorColor: string; interiorColor: string;
-    roughness: number; metalness: number;
-    width: number; height: number; depth: number;
+/* ─── Props ─── */
+export interface ConfiguratorProps {
+    exteriorColor: string;
+    interiorColor: string;
+    width: number;        // mm
+    height: number;       // mm
+    depth: number;        // mm
+    columns: number;
+    backPanel: boolean;
+    columnVariants: ('open' | 'shelves' | 'drawers' | 'door')[];
 }
 
-export default function ThreeViewer({ exteriorColor, interiorColor, roughness, metalness, width, height, depth }: Props) {
-    const moduleCount = Math.max(1, Math.round(width / 900));
-    const scaleY = height / BASE_H;
-    const scaleZ = depth / BASE_D;
+export default function ThreeViewer(props: ConfiguratorProps) {
+    const { exteriorColor, interiorColor, width, height, depth, columns, backPanel, columnVariants } = props;
 
-    // Measured from actual GLB bounding box — avoids hardcoded MODULE_W
-    const [moduleW, setModuleW] = useState(0.9);
-    const handleWidth = (w: number) => setModuleW(w);
+    const W = width / 1000;
+    const H = height / 1000;
+    const D = depth / 1000;
+    const T = 0.018; // 18mm panel thickness
 
-    const totalWidth = moduleCount * moduleW;
-    const startX = -(totalWidth / 2) + moduleW / 2;
+    const colW = W / columns;
+    const startX = -(W / 2) + colW / 2;
 
-    const camZ = totalWidth * 0.8 + 2.5;
-    const camX = totalWidth * 0.3 + 0.4;
+    const camZ = W * 0.7 + 1.8;
+    const camX = W * 0.25 + 0.3;
 
     return (
         <Canvas
             shadows
-            camera={{ position: [camX, 1.2, camZ], fov: 32 }}
+            camera={{ position: [camX, H * 0.55, camZ], fov: 32 }}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
             style={{ width: '100%', height: '100%' }}
         >
             <SceneSetup />
-            <Room totalWidth={totalWidth} scaleY={scaleY} />
+            <Room W={W} />
 
-            {Array.from({ length: moduleCount }).map((_, i) => (
-                <WardrobeModule
-                    key={i}
-                    pos={[startX + i * moduleW, 0, 0]}
-                    extColor={exteriorColor}
-                    intColor={interiorColor}
-                    roughness={roughness}
-                    metalness={metalness}
-                    scaleY={scaleY}
-                    scaleZ={scaleZ}
-                    onWidth={handleWidth}
-                />
-            ))}
+            {Array.from({ length: columns }).map((_, i) => {
+                const variant = columnVariants[i] ?? 'shelves';
+                return (
+                    <Column
+                        key={i}
+                        x={startX + i * colW}
+                        colW={colW}
+                        H={H} D={D} T={T}
+                        extColor={exteriorColor}
+                        intColor={interiorColor}
+                        backPanel={backPanel}
+                        variant={variant}
+                    />
+                );
+            })}
 
-            <HumanSilhouette offsetX={-(totalWidth / 2)} />
+            <HumanSilhouette x={-W / 2} />
 
-            <ContactShadows position={[0, 0, 0]} opacity={0.28} scale={12} blur={2} far={1} />
             <OrbitControls
-                enableDamping dampingFactor={0.05}
-                minPolarAngle={Math.PI * 0.1} maxPolarAngle={Math.PI * 0.52}
-                minDistance={1.2} maxDistance={16}
-                target={[0, 0.5 * scaleY, 0]}
+                enableDamping dampingFactor={0.06}
+                minPolarAngle={Math.PI * 0.08}
+                maxPolarAngle={Math.PI * 0.50}
+                minDistance={1} maxDistance={14}
+                target={[0, H * 0.45, 0]}
                 enablePan={false}
             />
         </Canvas>
     );
 }
-
-useGLTF.preload('/models/dulap.glb');
