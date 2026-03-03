@@ -332,28 +332,38 @@ export default function FurnitureViewer() {
                         </div>
                     </div>
 
-                    {/* Column variant selector */}
-                    {columns > 1 && (
+                    {/* Column variant selector — Tylko SVG icon style */}
+                    {columns > 0 && (
                         <div>
                             <SL>Interior per coloană</SL>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {Array.from({ length: columns }).map((_, i) => (
-                                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontSize: 11, color: '#888', minWidth: 55 }}>Col. {i + 1}</span>
-                                        <select
-                                            value={variants[i] ?? 'shelves'}
-                                            onChange={e => {
-                                                const next = [...variants];
-                                                next[i] = e.target.value as ColVariant;
-                                                setVariants(next);
-                                            }}
-                                            style={{ flex: 1, padding: '4px 8px', border: '1px solid #DDD', borderRadius: 4, fontSize: 12, color: '#444', background: '#fff' }}
-                                        >
-                                            <option value="open">Deschis + șina</option>
-                                            <option value="shelves">Polițe</option>
-                                            <option value="drawers">Sertare</option>
-                                            <option value="door">Ușă</option>
-                                        </select>
+                                    <div key={i}>
+                                        <div style={{ fontSize: 10, color: '#aaa', marginBottom: 5, fontWeight: 600 }}>COL. {i + 1}</div>
+                                        <div style={{ display: 'flex', gap: 5 }}>
+                                            {([
+                                                { v: 'open', label: 'Deschis', svg: <svg width="24" height="28" viewBox="0 0 24 28" fill="none"><rect x="1" y="1" width="22" height="26" rx="1" stroke="currentColor" strokeWidth="1.5" /><line x1="12" y1="4" x2="12" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><line x1="12" y1="10" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg> },
+                                                { v: 'shelves', label: 'Polițe', svg: <svg width="24" height="28" viewBox="0 0 24 28" fill="none"><rect x="1" y="1" width="22" height="26" rx="1" stroke="currentColor" strokeWidth="1.5" /><line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" strokeWidth="1.5" /><line x1="4" y1="15" x2="20" y2="15" stroke="currentColor" strokeWidth="1.5" /><line x1="4" y1="21" x2="20" y2="21" stroke="currentColor" strokeWidth="1.5" /></svg> },
+                                                { v: 'drawers', label: 'Sertare', svg: <svg width="24" height="28" viewBox="0 0 24 28" fill="none"><rect x="1" y="1" width="22" height="26" rx="1" stroke="currentColor" strokeWidth="1.5" /><rect x="4" y="5" width="16" height="5" rx="0.5" stroke="currentColor" strokeWidth="1.2" /><rect x="4" y="12" width="16" height="5" rx="0.5" stroke="currentColor" strokeWidth="1.2" /><rect x="4" y="19" width="16" height="5" rx="0.5" stroke="currentColor" strokeWidth="1.2" /><line x1="10" y1="7.5" x2="14" y2="7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><line x1="10" y1="14.5" x2="14" y2="14.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><line x1="10" y1="21.5" x2="14" y2="21.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg> },
+                                                { v: 'door', label: 'Ușă', svg: <svg width="24" height="28" viewBox="0 0 24 28" fill="none"><rect x="1" y="1" width="22" height="26" rx="1" stroke="currentColor" strokeWidth="1.5" /><rect x="3" y="3" width="18" height="22" rx="0.5" stroke="currentColor" strokeWidth="1.2" /><circle cx="18" cy="14" r="1.4" fill="currentColor" /></svg> },
+                                            ] as const).map(({ v, label, svg }) => {
+                                                const active = (variants[i] ?? 'shelves') === v;
+                                                return (
+                                                    <div key={v} title={label} onClick={() => {
+                                                        const next = [...variants]; next[i] = v; setVariants(next);
+                                                    }} style={{
+                                                        width: 44, height: 50, border: `2px solid ${active ? '#E8472C' : '#E0DBD4'}`,
+                                                        borderRadius: 7, cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                                                        alignItems: 'center', justifyContent: 'center', gap: 3,
+                                                        background: active ? '#FFF4F2' : '#fff', transition: 'all 0.12s',
+                                                        color: active ? '#E8472C' : '#bbb',
+                                                    }}>
+                                                        {svg}
+                                                        <span style={{ fontSize: 7.5, fontWeight: 700, letterSpacing: 0.2 }}>{label.toUpperCase()}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -362,17 +372,30 @@ export default function FurnitureViewer() {
                 </div>
 
                 {/* CTA — sticky footer like Tylko */}
-                <div style={{ padding: '12px 20px 20px', borderTop: '1px solid #F0ECE7', background: '#fff' }}>
+                <div style={{ padding: '12px 20px 20px', borderTop: '1px solid #F0ECE7', background: '#fff', marginTop: 'auto' }}>
                     <button
                         onClick={placeOrder} disabled={ordering}
                         style={{ width: '100%', padding: '14px', background: ordering ? '#ccc' : '#E8472C', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: ordering ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8, transition: 'background 0.2s' }}
                     >
                         🛒 {ordering ? 'Se procesează…' : 'Adaugă în coș'}
                     </button>
-                    <button style={{ width: '100%', padding: '10px', background: '#fff', color: '#1A1A1A', border: '1.5px solid #DDD', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                        ♡ Salvează configurația
-                    </button>
-                    <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center', marginTop: 10, lineHeight: 1.6 }}>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        <button style={{ flex: 1, padding: '9px', background: '#fff', color: '#1A1A1A', border: '1.5px solid #DDD', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                            ♡ Salvează
+                        </button>
+                        <button
+                            onClick={async () => {
+                                const url = `/api/cnc-export?w=${width}&h=${height}&d=${depth}&cols=${columns}`;
+                                const a = document.createElement('a');
+                                a.href = url; a.download = `KAGU-${width}x${height}x${depth}.dxf`;
+                                a.click();
+                            }}
+                            style={{ flex: 1, padding: '9px', background: '#fff', color: '#555', border: '1.5px solid #DDD', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                            ↓ DXF
+                        </button>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center', lineHeight: 1.6 }}>
                         Livrat în 6–9 săptămâni · Fabricat la comandă
                     </div>
                 </div>

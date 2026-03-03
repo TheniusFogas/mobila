@@ -336,15 +336,16 @@ function Column({
     );
 }
 
-/* ─── Auto-frame camera to fit the cabinet ─── */
+/* ─── Auto-frame camera to 3/4 perspective (Tylko angle) ─── */
 function CameraFramer({ W, H }: { W: number; H: number }) {
     const { camera } = useThree();
     useEffect(() => {
-        const diag = Math.sqrt(W * W + H * H);
         const fov = (camera as THREE.PerspectiveCamera).fov ?? 32;
-        const dist = (diag / 2) / Math.tan((fov * Math.PI) / 360) * 1.35;
-        camera.position.set(W * 0.28, H * 0.52, dist);
-        camera.lookAt(0, H * 0.45, 0);
+        const diag = Math.sqrt(W * W + H * H);
+        const dist = (diag / 2) / Math.tan((fov * Math.PI) / 360) * 1.28;
+        // 3/4 angle: camera left of center, looking at right-front corner
+        camera.position.set(-W * 0.35, H * 0.58, dist * 0.92);
+        camera.lookAt(W * 0.1, H * 0.42, 0);
         camera.updateProjectionMatrix();
     }, [W, H, camera]);
     return null;
@@ -416,7 +417,7 @@ export default function ThreeViewer(props: ConfiguratorProps) {
     return (
         <Canvas
             shadows
-            camera={{ position: [W * 0.28, H * 0.52, W + 2.4], fov: 32 }}
+            camera={{ position: [-0.8, 1.4, 3.2], fov: 32 }}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
             style={{ width: '100%', height: '100%' }}
         >
