@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, Html } from '@react-three/drei';
 
 /* ─── Palette ─── */
 const WALL_COLOR = '#E8E5E0';
@@ -238,6 +238,24 @@ function Column({
     );
 }
 
+/* ─── Pencil icon overlay at bottom of each column ─── */
+function ColumnEditIcon({ x, idx, onEdit }: { x: number; idx: number; onEdit: (i: number) => void }) {
+    return (
+        <Html position={[x, -0.04, 0.02]} center zIndexRange={[10, 20]} style={{ pointerEvents: 'none' }}>
+            <button
+                onClick={(e) => { e.stopPropagation(); onEdit(idx); }}
+                style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.92)', border: '1.5px solid rgba(0,0,0,0.12)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.14)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, color: '#555', pointerEvents: 'auto',
+                }}
+            >✏</button>
+        </Html>
+    );
+}
+
 /* ─── Lighting ─── */
 function SceneSetup() {
     const { scene } = useThree();
@@ -260,25 +278,25 @@ function SceneSetup() {
 export interface ConfiguratorProps {
     exteriorColor: string;
     interiorColor: string;
-    width: number;        // mm
-    height: number;       // mm
-    depth: number;        // mm
+    width: number;
+    height: number;
+    depth: number;
     columns: number;
     backPanel: boolean;
     columnVariants: ('open' | 'shelves' | 'drawers' | 'door')[];
+    onColumnEdit?: (colIndex: number) => void;
 }
 
 export default function ThreeViewer(props: ConfiguratorProps) {
-    const { exteriorColor, interiorColor, width, height, depth, columns, backPanel, columnVariants } = props;
+    const { exteriorColor, interiorColor, width, height, depth, columns, backPanel, columnVariants, onColumnEdit } = props;
 
     const W = width / 1000;
     const H = height / 1000;
     const D = depth / 1000;
-    const T = 0.018; // 18mm panel thickness
+    const T = 0.018;
 
     const colW = W / columns;
     const startX = -(W / 2) + colW / 2;
-
     const camZ = W * 0.7 + 1.8;
     const camX = W * 0.25 + 0.3;
 
@@ -294,17 +312,21 @@ export default function ThreeViewer(props: ConfiguratorProps) {
 
             {Array.from({ length: columns }).map((_, i) => {
                 const variant = columnVariants[i] ?? 'shelves';
+                const cx = startX + i * colW;
                 return (
-                    <Column
-                        key={i}
-                        x={startX + i * colW}
-                        colW={colW}
-                        H={H} D={D} T={T}
-                        extColor={exteriorColor}
-                        intColor={interiorColor}
-                        backPanel={backPanel}
-                        variant={variant}
-                    />
+                    <group key={i}>
+                        <Column
+                            x={cx} colW={colW}
+                            H={H} D={D} T={T}
+                            extColor={exteriorColor}
+                            intColor={interiorColor}
+                            backPanel={backPanel}
+                            variant={variant}
+                        />
+                        {onColumnEdit && (
+                            <ColumnEditIcon x={cx} idx={i} onEdit={onColumnEdit} />
+                        )}
+                    </group>
                 );
             })}
 

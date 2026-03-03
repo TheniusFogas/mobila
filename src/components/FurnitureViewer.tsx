@@ -97,6 +97,8 @@ export default function FurnitureViewer() {
     const [priceOld, setPriceOld] = useState(0);
     const [ordering, setOrdering] = useState(false);
     const [orderCode, setOrderCode] = useState<string | null>(null);
+    const [editingCol, setEditingCol] = useState<number | null>(null);
+    const [doorHinge, setDoorHinge] = useState<'left' | 'right'>('left');
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -146,6 +148,7 @@ export default function FurnitureViewer() {
         interiorColor: intCol.hex,
         width, height, depth, columns, backPanel,
         columnVariants: variants,
+        onColumnEdit: (i) => setEditingCol(i),
     };
 
     return (
@@ -164,8 +167,61 @@ export default function FurnitureViewer() {
             </div>
 
             {/* Dimension badge — bottom left */}
-            <div style={{ position: 'absolute', bottom: 18, left: 18, background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', padding: '5px 14px', borderRadius: 100, fontSize: 11, fontWeight: 600, color: '#555', border: '1px solid rgba(0,0,0,0.07)', userSelect: 'none' }}>
+            <div style={{ position: 'absolute', bottom: editingCol !== null ? 160 : 18, left: 18, background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', padding: '5px 14px', borderRadius: 100, fontSize: 11, fontWeight: 600, color: '#555', border: '1px solid rgba(0,0,0,0.07)', userSelect: 'none', transition: 'bottom 0.25s' }}>
                 {width / 10} × {height / 10} × {depth / 10} cm &nbsp;·&nbsp; {columns} {columns === 1 ? 'coloană' : 'coloane'}
+            </div>
+
+            {/* ─── COLUMN EDIT BOTTOM SHEET ─── */}
+            <div style={{
+                position: 'absolute', bottom: editingCol !== null ? 0 : -220,
+                left: 0, right: 300, background: '#fff',
+                borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
+                zIndex: 100, padding: '16px 20px 28px',
+                transition: 'bottom 0.28s cubic-bezier(0.22,1,0.36,1)',
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
+                        Coloana {editingCol !== null ? editingCol + 1 : '—'}
+                    </span>
+                    <button onClick={() => setEditingCol(null)} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#aaa', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {([
+                        { v: 'open', symbol: '▭', label: 'Deschis' },
+                        { v: 'shelves', symbol: '☰', label: 'Polițe' },
+                        { v: 'drawers', symbol: '≡', label: 'Sertare' },
+                        { v: 'door', symbol: '▣', label: 'Ușă' },
+                    ] as const).map(({ v, symbol, label }) => {
+                        const active = editingCol !== null && (variants[editingCol] ?? 'shelves') === v;
+                        return (
+                            <div key={v} onClick={() => {
+                                if (editingCol === null) return;
+                                const next = [...variants]; next[editingCol] = v; setVariants(next);
+                            }} style={{
+                                width: 60, height: 64, border: `2px solid ${active ? '#E8472C' : '#E0DBD4'}`,
+                                borderRadius: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center', gap: 5,
+                                background: active ? '#FFF4F2' : '#fff', transition: 'all 0.14s',
+                            }}>
+                                <span style={{ fontSize: 22, color: active ? '#E8472C' : '#bbb' }}>{symbol}</span>
+                                <span style={{ fontSize: 9, fontWeight: 700, color: '#bbb' }}>{label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+                {editingCol !== null && (variants[editingCol] ?? 'shelves') === 'door' && (
+                    <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 12, color: '#666' }}>Deschidere ușă</span>
+                        {(['left', 'right'] as const).map(side => (
+                            <button key={side} onClick={() => setDoorHinge(side)} style={{
+                                padding: '4px 14px', border: `1.5px solid ${doorHinge === side ? '#E8472C' : '#DDD'}`,
+                                borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                background: doorHinge === side ? '#E8472C' : '#fff',
+                                color: doorHinge === side ? '#fff' : '#555',
+                            }}>{side === 'left' ? 'Stânga' : 'Dreapta'}</button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Order confirmation overlay */}
