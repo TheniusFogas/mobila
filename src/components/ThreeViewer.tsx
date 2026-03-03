@@ -36,7 +36,7 @@ function ProceduralEnvironment() {
     return null;
 }
 
-/* ─── Wood grain canvas texture — VISIBLE, high contrast ─── */
+/* ─── Wood grain canvas texture — STRONG CONTRAST, always visible ─── */
 function createWoodTexture(hex: string): THREE.CanvasTexture {
     const W = 1024, H = 512;
     const c = document.createElement('canvas');
@@ -47,72 +47,105 @@ function createWoodTexture(hex: string): THREE.CanvasTexture {
     const r0 = parseInt(hex.slice(1, 3), 16);
     const g0 = parseInt(hex.slice(3, 5), 16);
     const b0 = parseInt(hex.slice(5, 7), 16);
+    // Luminance — for light colors we go darker, for dark colors we go lighter
+    const lum = (r0 * 0.299 + g0 * 0.587 + b0 * 0.114) / 255;
 
     // Base coat
     ctx.fillStyle = hex;
     ctx.fillRect(0, 0, W, H);
 
-    // Dark base grain wash
-    const grad = ctx.createLinearGradient(0, 0, W, 0);
-    grad.addColorStop(0, `rgba(${Math.max(0, r0 - 22)},${Math.max(0, g0 - 18)},${Math.max(0, b0 - 12)},0.35)`);
-    grad.addColorStop(0.5, `rgba(${Math.min(255, r0 + 18)},${Math.min(255, g0 + 14)},${Math.min(255, b0 + 8)},0.2)`);
-    grad.addColorStop(1, `rgba(${Math.max(0, r0 - 22)},${Math.max(0, g0 - 18)},${Math.max(0, b0 - 12)},0.35)`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
+    // Wide gradient banding — vertical panels
+    for (let i = 0; i < 8; i++) {
+        const x = (i / 8) * W + Math.random() * 40;
+        const bw = 40 + Math.random() * 80;
+        const g = ctx.createLinearGradient(x - bw, 0, x + bw, 0);
+        const a = 0.06 + Math.random() * 0.10;
+        const dark = Math.random() > 0.5;
+        const rgba = dark
+            ? `rgba(${Math.max(0, r0 - 55)},${Math.max(0, g0 - 40)},${Math.max(0, b0 - 25)},${a})`
+            : `rgba(${Math.min(255, r0 + 40)},${Math.min(255, g0 + 30)},${Math.min(255, b0 + 18)},${a * 0.7})`;
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, rgba); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
 
-    // Main grain lines — PROMINENT
     const rng = (min: number, max: number) => min + Math.random() * (max - min);
-    for (let i = 0; i < 60; i++) {
+
+    // PROMINENT grain lines — absolute dark/light contrast, not relative
+    for (let i = 0; i < 80; i++) {
         const x = rng(0, W);
-        const lineW = rng(0.8, 4.5);
-        const dark = Math.random() > 0.45;
-        const alpha = rng(0.08, 0.22);
-        const dr = dark ? -rng(20, 45) : rng(10, 30);
+        const lineW = rng(0.5, 3.8);
+        const isDark = Math.random() > 0.38;
+        // Use absolute dark-brown for light woods, absolute cream for dark woods
+        let r: number, g: number, b: number, alpha: number;
+        if (isDark) {
+            if (lum > 0.5) {
+                // Light wood → dark espresso lines
+                r = Math.max(0, r0 - Math.round(rng(40, 80)));
+                g = Math.max(0, g0 - Math.round(rng(35, 65)));
+                b = Math.max(0, b0 - Math.round(rng(20, 45)));
+                alpha = rng(0.18, 0.38);
+            } else {
+                // Dark wood → medium dark lines
+                r = Math.max(0, r0 - Math.round(rng(20, 50)));
+                g = Math.max(0, g0 - Math.round(rng(18, 42)));
+                b = Math.max(0, b0 - Math.round(rng(10, 28)));
+                alpha = rng(0.22, 0.45);
+            }
+        } else {
+            if (lum > 0.5) {
+                // Light wood → platinum highlight
+                r = Math.min(255, r0 + Math.round(rng(18, 42)));
+                g = Math.min(255, g0 + Math.round(rng(14, 34)));
+                b = Math.min(255, b0 + Math.round(rng(8, 22)));
+                alpha = rng(0.10, 0.22);
+            } else {
+                // Dark wood → lighter grain highlight
+                r = Math.min(255, r0 + Math.round(rng(30, 65)));
+                g = Math.min(255, g0 + Math.round(rng(25, 52)));
+                b = Math.min(255, b0 + Math.round(rng(15, 35)));
+                alpha = rng(0.18, 0.35);
+            }
+        }
 
         ctx.beginPath();
-        ctx.moveTo(x + rng(-4, 4), 0);
-        let cy = 0;
-        let cx2 = x;
+        ctx.moveTo(x + rng(-3, 3), 0);
+        let cy = 0, cx2 = x;
         while (cy < H) {
-            const step = rng(20, 60);
-            cx2 += rng(-6, 6);
-            ctx.quadraticCurveTo(cx2 + rng(-10, 10), cy + step / 2, cx2, cy + step);
+            const step = rng(15, 55);
+            cx2 += rng(-7, 7);
+            ctx.quadraticCurveTo(cx2 + rng(-12, 12), cy + step * 0.5, cx2, cy + step);
             cy += step;
         }
-        ctx.strokeStyle = `rgba(${Math.round(Math.max(0, Math.min(255, r0 + dr)))},${Math.round(Math.max(0, Math.min(255, g0 + dr * 0.8)))},${Math.round(Math.max(0, Math.min(255, b0 + dr * 0.5)))},${alpha})`;
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
         ctx.lineWidth = lineW;
         ctx.stroke();
     }
 
-    // Fine pores / microscopic grain
-    for (let i = 0; i < 3000; i++) {
+    // Fine wood pores — vertical micro-scratches
+    for (let i = 0; i < 4000; i++) {
         const px = Math.random() * W;
         const py = Math.random() * H;
-        const len = rng(4, 18);
-        const alpha = rng(0.04, 0.12);
-        const dark = Math.random() > 0.5;
+        const len = rng(3, 16);
+        const isDark = Math.random() > 0.5;
+        const a = rng(0.06, 0.18);
         ctx.beginPath();
         ctx.moveTo(px, py);
-        ctx.lineTo(px + rng(-1, 1), py + len);
-        ctx.strokeStyle = dark
-            ? `rgba(${Math.max(0, r0 - 30)},${Math.max(0, g0 - 25)},${Math.max(0, b0 - 18)},${alpha})`
-            : `rgba(${Math.min(255, r0 + 25)},${Math.min(255, g0 + 20)},${Math.min(255, b0 + 12)},${alpha * 0.7})`;
-        ctx.lineWidth = rng(0.4, 1.2);
+        ctx.lineTo(px + rng(-0.8, 0.8), py + len);
+        if (isDark) {
+            const dr = lum > 0.5 ? -rng(30, 60) : -rng(15, 35);
+            ctx.strokeStyle = `rgba(${Math.max(0, r0 + dr)},${Math.max(0, g0 + Math.round(dr * 0.8))},${Math.max(0, b0 + Math.round(dr * 0.5))},${a})`;
+        } else {
+            const dr = lum > 0.5 ? rng(15, 35) : rng(25, 55);
+            ctx.strokeStyle = `rgba(${Math.min(255, r0 + dr)},${Math.min(255, g0 + Math.round(dr * 0.8))},${Math.min(255, b0 + Math.round(dr * 0.5))},${a * 0.6})`;
+        }
+        ctx.lineWidth = rng(0.3, 1.0);
         ctx.stroke();
     }
 
-    // Highlight sheen strip
-    const sheen = ctx.createLinearGradient(0, 0, W * 0.3, 0);
-    sheen.addColorStop(0, 'rgba(255,255,255,0)');
-    sheen.addColorStop(0.5, 'rgba(255,255,255,0.07)');
-    sheen.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = sheen;
-    ctx.fillRect(0, 0, W, H);
-
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(2, 4);
-    tex.anisotropy = 8;
+    tex.repeat.set(1.5, 3.5);
+    tex.anisotropy = 16;
     tex.needsUpdate = true;
     return tex;
 }
@@ -149,23 +182,18 @@ function createWoodNormal(): THREE.CanvasTexture {
     return n;
 }
 
-/* ─── Material cache (per hex colour) ─── */
-const matCache = new Map<string, THREE.MeshStandardMaterial>();
-function getWoodMat(hex: string, roughness = 0.72, metalness = 0.02): THREE.MeshStandardMaterial {
-    const key = hex + roughness;
-    if (matCache.has(key)) return matCache.get(key)!;
+/* ─── Material factory (no module-level cache — color changes need fresh textures) ─── */
+function getWoodMat(hex: string, roughness = 0.55, metalness = 0.0): THREE.MeshStandardMaterial {
     if (typeof window === 'undefined') return new THREE.MeshStandardMaterial({ color: hex });
     const tex = createWoodTexture(hex);
     const norm = createWoodNormal();
-    const mat = new THREE.MeshStandardMaterial({
+    return new THREE.MeshStandardMaterial({
         map: tex,
         normalMap: norm,
-        normalScale: new THREE.Vector2(0.4, 0.4),
+        normalScale: new THREE.Vector2(0.55, 0.55),
         roughness,
         metalness,
     });
-    matCache.set(key, mat);
-    return mat;
 }
 
 /* ─── Studio Lighting — 3-point + rim ─── */
