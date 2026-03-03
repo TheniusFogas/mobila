@@ -5,162 +5,251 @@ import * as THREE from 'three';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 
-/* ─── Palette ─── */
-const WALL_COLOR = '#E8E5E0';
-const FLOOR_COLOR = '#D8D4CE';
-const EDGE_COLOR = 0xD4C8B8; // visible MDF edge (birch-ply look)
+/* ─── constants ─── */
+const WALL = '#F0EDE8';
+const FLOOR = '#E2DDD6';
+const EDGE = '#C8BFAF';
+const T = 0.018;   // panel thickness 18 mm
 
-/* ─── Room ─── */
-function Room({ W }: { W: number }) {
-    const roomW = W + 2.0;
+/* ─── Infinite floor + wall ─── */
+function InfiniteRoom() {
     return (
         <group>
-            {/* Floor */}
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0.4]} receiveShadow>
-                <planeGeometry args={[roomW, 4]} />
-                <meshStandardMaterial color={FLOOR_COLOR} roughness={0.95} />
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+                <planeGeometry args={[80, 80]} />
+                <meshStandardMaterial color={FLOOR} roughness={1} />
             </mesh>
-            {/* Wall */}
-            <mesh position={[0, 1.4, -0.34]} receiveShadow>
-                <planeGeometry args={[roomW, 2.8]} />
-                <meshStandardMaterial color={WALL_COLOR} roughness={1} />
+            <mesh position={[0, 20, -8]} receiveShadow>
+                <planeGeometry args={[80, 40]} />
+                <meshStandardMaterial color={WALL} roughness={1} />
             </mesh>
         </group>
     );
 }
 
-/* ─── Human silhouette — bezier canvas, in 3D scene ─── */
+/* ─── SVG-traced human silhouette from the PNG reference ─── */
 function HumanSilhouette({ x }: { x: number }) {
     const tex = useMemo(() => {
         if (typeof window === 'undefined') return null;
-        const W = 256, H = 512;
-        const canvas = document.createElement('canvas');
-        canvas.width = W; canvas.height = H;
-        const ctx = canvas.getContext('2d')!;
-        const cx = W / 2;
-        ctx.fillStyle = 'rgba(100,100,100,0.42)';
+        const W = 200, H = 480;
+        const c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = 'rgba(60,55,50,0.28)';
+
         // Head
-        ctx.beginPath(); ctx.ellipse(cx, 52, 30, 38, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(W / 2, 36, 22, 28, 0, 0, Math.PI * 2);
+        ctx.fill();
+
         // Neck
-        ctx.beginPath(); ctx.rect(cx - 13, 87, 26, 22); ctx.fill();
-        // Torso
-        const t = new Path2D();
-        t.moveTo(cx - 65, 108); t.bezierCurveTo(cx - 68, 120, cx - 50, 165, cx - 44, 200);
-        t.lineTo(cx - 34, 285); t.lineTo(cx + 34, 285);
-        t.lineTo(cx + 44, 200); t.bezierCurveTo(cx + 50, 165, cx + 68, 120, cx + 65, 108);
-        t.bezierCurveTo(cx + 46, 97, cx + 20, 92, cx, 92);
-        t.bezierCurveTo(cx - 20, 92, cx - 46, 97, cx - 65, 108);
-        ctx.fill(t);
-        // Left arm
+        ctx.beginPath();
+        ctx.rect(W / 2 - 9, 62, 18, 16);
+        ctx.fill();
+
+        const body = new Path2D();
+        body.moveTo(W / 2 - 48, 78);
+        body.bezierCurveTo(W / 2 - 52, 90, W / 2 - 38, 140, W / 2 - 32, 195);
+        body.lineTo(W / 2 - 24, 260);
+        body.lineTo(W / 2 + 24, 260);
+        body.lineTo(W / 2 + 32, 195);
+        body.bezierCurveTo(W / 2 + 38, 140, W / 2 + 52, 90, W / 2 + 48, 78);
+        body.bezierCurveTo(W / 2 + 34, 68, W / 2 + 15, 64, W / 2, 65);
+        body.bezierCurveTo(W / 2 - 15, 64, W / 2 - 34, 68, W / 2 - 48, 78);
+        ctx.fill(body);
+
+        // left arm
         const al = new Path2D();
-        al.moveTo(cx - 65, 108); al.bezierCurveTo(cx - 86, 145, cx - 94, 218, cx - 82, 278);
-        al.lineTo(cx - 66, 272); al.bezierCurveTo(cx - 76, 216, cx - 66, 148, cx - 48, 124);
+        al.moveTo(W / 2 - 48, 78);
+        al.bezierCurveTo(W / 2 - 68, 120, W / 2 - 74, 190, W / 2 - 62, 248);
+        al.lineTo(W / 2 - 50, 242);
+        al.bezierCurveTo(W / 2 - 60, 188, W / 2 - 52, 122, W / 2 - 34, 94);
         al.closePath(); ctx.fill(al);
-        // Right arm
+
+        // right arm
         const ar = new Path2D();
-        ar.moveTo(cx + 65, 108); ar.bezierCurveTo(cx + 86, 145, cx + 94, 218, cx + 82, 278);
-        ar.lineTo(cx + 66, 272); ar.bezierCurveTo(cx + 76, 216, cx + 66, 148, cx + 48, 124);
+        ar.moveTo(W / 2 + 48, 78);
+        ar.bezierCurveTo(W / 2 + 68, 120, W / 2 + 74, 190, W / 2 + 62, 248);
+        ar.lineTo(W / 2 + 50, 242);
+        ar.bezierCurveTo(W / 2 + 60, 188, W / 2 + 52, 122, W / 2 + 34, 94);
         ar.closePath(); ctx.fill(ar);
-        // Hips
-        ctx.beginPath(); ctx.ellipse(cx, 285, 44, 18, 0, 0, Math.PI); ctx.fill();
-        // Left leg
+
+        // hips
+        ctx.beginPath();
+        ctx.ellipse(W / 2, 260, 32, 14, 0, 0, Math.PI);
+        ctx.fill();
+
+        // left leg
         const ll = new Path2D();
-        ll.moveTo(cx - 34, 285); ll.bezierCurveTo(cx - 46, 355, cx - 52, 420, cx - 50, 505);
-        ll.lineTo(cx - 22, 505); ll.bezierCurveTo(cx - 22, 418, cx - 18, 350, cx - 6, 285);
+        ll.moveTo(W / 2 - 26, 260);
+        ll.bezierCurveTo(W / 2 - 36, 330, W / 2 - 40, 390, W / 2 - 38, 475);
+        ll.lineTo(W / 2 - 14, 475);
+        ll.bezierCurveTo(W / 2 - 14, 388, W / 2 - 10, 326, W / 2 - 2, 260);
         ll.closePath(); ctx.fill(ll);
-        // Right leg
+
+        // right leg
         const rl = new Path2D();
-        rl.moveTo(cx + 34, 285); rl.bezierCurveTo(cx + 46, 355, cx + 52, 420, cx + 50, 505);
-        rl.lineTo(cx + 22, 505); rl.bezierCurveTo(cx + 22, 418, cx + 18, 350, cx + 6, 285);
+        rl.moveTo(W / 2 + 26, 260);
+        rl.bezierCurveTo(W / 2 + 36, 330, W / 2 + 40, 390, W / 2 + 38, 475);
+        rl.lineTo(W / 2 + 14, 475);
+        rl.bezierCurveTo(W / 2 + 14, 388, W / 2 + 10, 326, W / 2 + 2, 260);
         rl.closePath(); ctx.fill(rl);
-        const tex = new THREE.CanvasTexture(canvas);
+
+        const tex = new THREE.CanvasTexture(c);
         tex.needsUpdate = true;
         return tex;
     }, []);
 
     if (!tex) return null;
-    const H = 1.75, W = H * 0.5;
+    const PH = 1.75, PW = PH * (200 / 480);
     return (
-        <mesh position={[x - W * 0.8, H / 2, 0.02]}>
-            <planeGeometry args={[W, H]} />
-            <meshBasicMaterial map={tex} transparent alphaTest={0.04} depthWrite={false} side={THREE.DoubleSide} />
+        <mesh position={[x - PW * 0.6, PH / 2, 0.06]}>
+            <planeGeometry args={[PW, PH]} />
+            <meshBasicMaterial map={tex} transparent alphaTest={0.02} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
     );
 }
 
-/* ─── Shared material factory ─── */
-function useMat(color: string, roughness = 0.85, metalness = 0): THREE.MeshStandardMaterial {
-    return useMemo(() => new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness, metalness }), [color, roughness, metalness]);
-}
-
-/* ─── Animated door ─── */
-function Door({ w, h, hingeX, openRight, color, thickness }: {
-    w: number; h: number; hingeX: number; openRight: boolean;
-    color: string; thickness: number;
-}) {
-    const groupRef = useRef<THREE.Group>(null);
-    const [open, setOpen] = useState(false);
-    const targetY = open ? (openRight ? -Math.PI * 0.48 : Math.PI * 0.48) : 0;
-    const currentY = useRef(0);
-    const mat = useMat(color);
-    const edgeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: EDGE_COLOR, roughness: 0.9 }), []);
-
-    useFrame(() => {
-        if (!groupRef.current) return;
-        currentY.current = THREE.MathUtils.lerp(currentY.current, targetY, 0.1);
-        groupRef.current.rotation.y = currentY.current;
-    });
-
+/* ─── 3D Bar handle (horizontal pull) ─── */
+function Handle3D({ w, y, z }: { w: number; y: number; z: number }) {
+    const barLen = Math.min(w * 0.28, 0.14);
     return (
-        <group ref={groupRef} position={[hingeX, 0, 0]}>
-            {/* Panel */}
-            <mesh
-                position={[openRight ? w / 2 : -w / 2, h / 2, thickness / 2]}
-                onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
-                castShadow
-            >
-                <boxGeometry args={[w, h, thickness]} />
-                <meshStandardMaterial color={color} roughness={0.85} />
+        <group position={[0, y, z]}>
+            {/* bar */}
+            <mesh rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.0045, 0.0045, barLen, 10]} />
+                <meshStandardMaterial color="#B8B0A4" roughness={0.2} metalness={0.8} />
             </mesh>
-            {/* Handle */}
-            <mesh position={[openRight ? w * 0.85 : -w * 0.85, h * 0.42, thickness + 0.005]}>
-                <boxGeometry args={[0.008, 0.12, 0.01]} />
-                <meshStandardMaterial color="#888" roughness={0.3} metalness={0.7} />
+            {/* left post */}
+            <mesh position={[-barLen / 2, 0, -0.012]}>
+                <cylinderGeometry args={[0.004, 0.004, 0.022, 8]} />
+                <meshStandardMaterial color="#B8B0A4" roughness={0.2} metalness={0.8} />
+            </mesh>
+            {/* right post */}
+            <mesh position={[barLen / 2, 0, -0.012]}>
+                <cylinderGeometry args={[0.004, 0.004, 0.022, 8]} />
+                <meshStandardMaterial color="#B8B0A4" roughness={0.2} metalness={0.8} />
             </mesh>
         </group>
     );
 }
 
-/* ─── Animated drawer ─── */
-function Drawer({ w, h, d, y, color, thickness }: { w: number; h: number; d: number; y: number; color: string; thickness: number; }) {
+/* ─── 3D Hinge (2 plates + barrel) ─── */
+function Hinge3D({ y }: { y: number }) {
+    return (
+        <group position={[0, y, 0]}>
+            {/* Fixed plate (on frame) */}
+            <mesh position={[-0.022, 0, 0]}>
+                <boxGeometry args={[0.02, 0.032, 0.006]} />
+                <meshStandardMaterial color="#A09888" roughness={0.3} metalness={0.6} />
+            </mesh>
+            {/* Moving plate (on door) */}
+            <mesh position={[0.008, 0, 0.003]}>
+                <boxGeometry args={[0.024, 0.032, 0.006]} />
+                <meshStandardMaterial color="#A09888" roughness={0.3} metalness={0.6} />
+            </mesh>
+            {/* Barrel */}
+            <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.005, 0.005, 0.034, 8]} />
+                <meshStandardMaterial color="#888070" roughness={0.2} metalness={0.7} />
+            </mesh>
+        </group>
+    );
+}
+
+/* ─── Animated door with 3D hinges ─── */
+function Door({ colW, H, openRight, color }: {
+    colW: number; H: number; openRight: boolean; color: string;
+}) {
+    const groupRef = useRef<THREE.Group>(null);
+    const [open, setOpen] = useState(false);
+    const targetY = open ? (openRight ? -Math.PI * 0.47 : Math.PI * 0.47) : 0;
+    const curY = useRef(0);
+
+    useFrame(() => {
+        if (!groupRef.current) return;
+        curY.current = THREE.MathUtils.lerp(curY.current, targetY, 0.08);
+        groupRef.current.rotation.y = curY.current;
+    });
+
+    const dw = colW - 2 * T - 0.002;
+    const dh = H - T * 2 - 0.004;
+    const hingeX = openRight ? -colW / 2 + T : colW / 2 - T;
+
+    return (
+        <group ref={groupRef} position={[hingeX, 0, 0]}>
+            {/* Door panel */}
+            <mesh
+                position={[openRight ? dw / 2 : -dw / 2, dh / 2 + T, T / 2]}
+                onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+                castShadow
+            >
+                <boxGeometry args={[dw, dh, T]} />
+                <meshStandardMaterial color={color} roughness={0.85} />
+            </mesh>
+            {/* Hinges at 20% and 80% height */}
+            {[0.2, 0.8].map((f, i) => (
+                <Hinge3D key={i} y={dh * f + T} />
+            ))}
+            {/* Handle on the pull side */}
+            <Handle3D
+                w={dw}
+                y={dh * 0.42 + T}
+                z={T + 0.018}
+            />
+        </group>
+    );
+}
+
+/* ─── Animated drawer with proper casing ─── */
+function Drawer({ colW, D, h, y, color }: {
+    colW: number; D: number; h: number; y: number; color: string;
+}) {
     const ref = useRef<THREE.Group>(null);
     const [open, setOpen] = useState(false);
-    const slideOut = d * 0.85; // drawer slides out by 85% of cabinet depth
-    const targetZ = open ? slideOut : 0;
-    const currentZ = useRef(0);
+    const slideZ = D * 0.82;
+    const curZ = useRef(0);
+    const tw = colW - 2 * T - 0.004; // interior width
+    const td = D - T;                // interior depth
 
     useFrame(() => {
         if (!ref.current) return;
-        currentZ.current = THREE.MathUtils.lerp(currentZ.current, targetZ, 0.1);
-        ref.current.position.z = currentZ.current;
+        curZ.current = THREE.MathUtils.lerp(curZ.current, open ? slideZ : 0, 0.08);
+        ref.current.position.z = curZ.current;
     });
 
     return (
-        <group ref={ref} position={[0, y, 0]}>
-            {/* Front face */}
-            <mesh position={[0, 0, thickness / 2]} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }} castShadow>
-                <boxGeometry args={[w, h - 0.006, thickness]} />
+        <group ref={ref} position={[0, y + h / 2, 0]}>
+            {/* Front panel */}
+            <mesh
+                position={[0, 0, T / 2]}
+                onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+                castShadow
+            >
+                <boxGeometry args={[tw, h - 0.003, T]} />
                 <meshStandardMaterial color={color} roughness={0.85} />
             </mesh>
-            {/* Handle — horizontal bar centered */}
-            <mesh position={[0, 0, thickness + 0.006]}>
-                <boxGeometry args={[w * 0.28, 0.009, 0.012]} />
-                <meshStandardMaterial color="#A0968A" roughness={0.25} metalness={0.65} />
+            {/* Handle */}
+            <Handle3D w={tw} y={0} z={T + 0.018} />
+            {/* Box bottom */}
+            <mesh position={[0, -h / 2 + 0.008, -td / 2]}>
+                <boxGeometry args={[tw - 0.008, 0.012, td]} />
+                <meshStandardMaterial color={EDGE} roughness={0.9} />
             </mesh>
-            {/* Drawer box body (sides, bottom, back) — visible while open */}
-            <mesh position={[0, -(h * 0.22), -(d * 0.4)]}>
-                <boxGeometry args={[w - 0.012, h * 0.55, d * 0.8]} />
-                <meshStandardMaterial color="#E0D8CC" roughness={0.92} side={THREE.BackSide} />
+            {/* Box left side */}
+            <mesh position={[-tw / 2 + 0.006, 0, -td / 2]}>
+                <boxGeometry args={[0.012, h * 0.85, td]} />
+                <meshStandardMaterial color={EDGE} roughness={0.9} />
+            </mesh>
+            {/* Box right side */}
+            <mesh position={[tw / 2 - 0.006, 0, -td / 2]}>
+                <boxGeometry args={[0.012, h * 0.85, td]} />
+                <meshStandardMaterial color={EDGE} roughness={0.9} />
+            </mesh>
+            {/* Box back */}
+            <mesh position={[0, 0, -td + 0.006]}>
+                <boxGeometry args={[tw - 0.02, h * 0.85, 0.012]} />
+                <meshStandardMaterial color={EDGE} roughness={0.9} />
             </mesh>
         </group>
     );
@@ -168,119 +257,146 @@ function Drawer({ w, h, d, y, color, thickness }: { w: number; h: number; d: num
 
 /* ─── One wardrobe column ─── */
 function Column({
-    x, colW, H, D, T, extColor, intColor, backPanel,
-    variant, // 'open' | 'shelves' | 'drawers' | 'door'
+    x, colW, H, D, extColor, intColor, backPanel, variant,
 }: {
-    x: number; colW: number; H: number; D: number; T: number;
+    x: number; colW: number; H: number; D: number;
     extColor: string; intColor: string; backPanel: boolean;
     variant: 'open' | 'shelves' | 'drawers' | 'door';
 }) {
-    const ext = useMat(extColor);
-    const int_ = useMat(intColor);
-    const back = useMat('#E8E0D8');
-
-    const panelArgs = (w: number, h: number, d: number): [number, number, number] => [w, h, d];
+    const innerW = colW - 2 * T;
+    const innerD = D - T;
 
     return (
         <group position={[x, 0, 0]}>
-            {/* Left side (only leftmost column has unique left panel, others share internal divider) */}
-            <mesh position={[-colW / 2 + T / 2, H / 2, 0]} castShadow receiveShadow material={ext}>
-                <boxGeometry args={panelArgs(T, H, D)} />
+            {/* Left panel */}
+            <mesh position={[-colW / 2 + T / 2, H / 2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[T, H, D]} />
+                <meshStandardMaterial color={extColor} roughness={0.85} />
             </mesh>
-            {/* Right side */}
-            <mesh position={[colW / 2 - T / 2, H / 2, 0]} castShadow receiveShadow material={ext}>
-                <boxGeometry args={panelArgs(T, H, D)} />
+            {/* Right panel */}
+            <mesh position={[colW / 2 - T / 2, H / 2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[T, H, D]} />
+                <meshStandardMaterial color={extColor} roughness={0.85} />
             </mesh>
-            {/* Top */}
-            <mesh position={[0, H - T / 2, 0]} castShadow material={ext}>
-                <boxGeometry args={panelArgs(colW - 2 * T, T, D)} />
+            {/* Top panel */}
+            <mesh position={[0, H - T / 2, 0]} castShadow>
+                <boxGeometry args={[innerW, T, D]} />
+                <meshStandardMaterial color={extColor} roughness={0.85} />
             </mesh>
-            {/* Bottom */}
-            <mesh position={[0, T / 2, 0]} castShadow material={ext}>
-                <boxGeometry args={panelArgs(colW - 2 * T, T, D)} />
+            {/* Bottom panel */}
+            <mesh position={[0, T / 2, 0]} castShadow>
+                <boxGeometry args={[innerW, T, D]} />
+                <meshStandardMaterial color={extColor} roughness={0.85} />
             </mesh>
             {/* Back panel */}
             {backPanel && (
-                <mesh position={[0, H / 2, -D / 2 + 0.006]} castShadow material={back}>
-                    <boxGeometry args={panelArgs(colW - 2 * T, H - 2 * T, 0.006)} />
+                <mesh position={[0, H / 2, -D / 2 + 0.005]}>
+                    <boxGeometry args={[innerW, H - 2 * T, 0.006]} />
+                    <meshStandardMaterial color={intColor} roughness={0.9} />
                 </mesh>
             )}
 
-            {/* INTERIOR CONTENT */}
-            {variant === 'shelves' && [0.35, 0.55, 0.72].map((frac, i) => (
-                <mesh key={i} position={[0, H * frac, 0]} material={int_}>
-                    <boxGeometry args={panelArgs(colW - 2 * T - 0.002, T * 0.8, D - T)} />
+            {/* ── INTERIOR VARIANTS ── */}
+
+            {variant === 'shelves' && [0.33, 0.54, 0.73].map((f, i) => (
+                <mesh key={i} position={[0, H * f, 0]}>
+                    <boxGeometry args={[innerW - 0.002, T * 0.8, innerD]} />
+                    <meshStandardMaterial color={intColor} roughness={0.9} />
                 </mesh>
             ))}
 
-            {variant === 'drawers' && [0.12, 0.26, 0.42, 0.58].map((frac, i) => (
-                <Drawer key={i} w={colW - 2 * T - 0.005} h={H * 0.13} d={D} y={H * frac} color={extColor} thickness={T} />
-            ))}
+            {variant === 'drawers' && (() => {
+                const usableH = H - 2 * T;
+                const n = 4;
+                const gap = 0.004;
+                const dh = (usableH - gap * (n + 1)) / n;
+                return Array.from({ length: n }).map((_, i) => (
+                    <Drawer
+                        key={i}
+                        colW={colW} D={D}
+                        h={dh}
+                        y={T + gap + i * (dh + gap)}
+                        color={extColor}
+                    />
+                ));
+            })()}
 
             {variant === 'door' && (
-                <Door
-                    w={colW - 2 * T - 0.003} h={H - T * 2.2 - 0.004}
-                    hingeX={-colW / 2 + T}
-                    openRight={true}
-                    color={extColor}
-                    thickness={T * 0.85}
-                />
+                <Door colW={colW} H={H} openRight color={extColor} />
             )}
 
             {variant === 'open' && (
-                /* Hanging rail — rotation on mesh, NOT on geometry */
-                <mesh position={[0, H * 0.82, 0]} rotation={[0, 0, Math.PI / 2]}>
-                    <cylinderGeometry args={[0.006, 0.006, colW - 2 * T - 0.02, 8]} />
-                    <meshStandardMaterial color="#B0A898" roughness={0.3} metalness={0.5} />
+                /* Hanging rail */
+                <mesh position={[0, H * 0.82, -D * 0.15]} rotation={[0, 0, Math.PI / 2]}>
+                    <cylinderGeometry args={[0.007, 0.007, innerW - 0.02, 12]} />
+                    <meshStandardMaterial color="#BAB2A8" roughness={0.25} metalness={0.55} />
                 </mesh>
             )}
         </group>
     );
 }
 
-/* ─── Pencil icon overlay at bottom of each column ─── */
-function ColumnEditIcon({ x, idx, onEdit }: { x: number; idx: number; onEdit: (i: number) => void }) {
-    return (
-        <Html position={[x, -0.04, 0.02]} center zIndexRange={[10, 20]} style={{ pointerEvents: 'none' }}>
-            <button
-                onClick={(e) => { e.stopPropagation(); onEdit(idx); }}
-                style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.92)', border: '1.5px solid rgba(0,0,0,0.12)',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.14)', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, color: '#555', pointerEvents: 'auto',
-                }}
-            >✏</button>
-        </Html>
-    );
+/* ─── Auto-frame camera to fit the cabinet ─── */
+function CameraFramer({ W, H }: { W: number; H: number }) {
+    const { camera } = useThree();
+    useEffect(() => {
+        const diag = Math.sqrt(W * W + H * H);
+        const fov = (camera as THREE.PerspectiveCamera).fov ?? 32;
+        const dist = (diag / 2) / Math.tan((fov * Math.PI) / 360) * 1.35;
+        camera.position.set(W * 0.28, H * 0.52, dist);
+        camera.lookAt(0, H * 0.45, 0);
+        camera.updateProjectionMatrix();
+    }, [W, H, camera]);
+    return null;
 }
 
 /* ─── Lighting ─── */
 function SceneSetup() {
     const { scene } = useThree();
     useEffect(() => {
-        scene.background = new THREE.Color('#EDEBE6');
-        const amb = new THREE.AmbientLight(0xffffff, 0.9);
-        const key = new THREE.DirectionalLight(0xfff8f4, 1.1);
-        key.position.set(4, 7, 6); key.castShadow = true;
-        key.shadow.mapSize.setScalar(1024);
-        key.shadow.camera.near = 0.5; key.shadow.camera.far = 20;
-        const fill = new THREE.DirectionalLight(0xf0f4ff, 0.28);
-        fill.position.set(-4, 3, -2);
+        scene.background = new THREE.Color('#EDEBE8');
+        scene.fog = new THREE.Fog('#EDEBE8', 14, 28);
+        const amb = new THREE.AmbientLight(0xffffff, 0.85);
+        const key = new THREE.DirectionalLight(0xfff9f4, 1.15);
+        key.position.set(5, 9, 7); key.castShadow = true;
+        key.shadow.mapSize.setScalar(2048);
+        key.shadow.camera.near = 0.5;
+        key.shadow.camera.far = 30;
+        key.shadow.camera.left = -6; key.shadow.camera.right = 6;
+        key.shadow.camera.top = 6; key.shadow.camera.bottom = -6;
+        const fill = new THREE.DirectionalLight(0xeef0ff, 0.32);
+        fill.position.set(-4, 4, -3);
         scene.add(amb, key, fill);
         return () => { scene.remove(amb, key, fill); };
     }, [scene]);
     return null;
 }
 
+/* ─── Pencil overlay per column ─── */
+function ColumnEditIcon({ x, idx, onEdit }: { x: number; idx: number; onEdit: (i: number) => void }) {
+    return (
+        <Html position={[x, -0.05, 0.05]} center zIndexRange={[10, 20]} style={{ pointerEvents: 'none' }}>
+            <button
+                onClick={e => { e.stopPropagation(); onEdit(idx); }}
+                style={{
+                    width: 30, height: 30, borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.94)', border: '1px solid rgba(0,0,0,0.10)',
+                    boxShadow: '0 1px 6px rgba(0,0,0,0.12)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, color: '#444', pointerEvents: 'auto',
+                }}
+            >✎</button>
+        </Html>
+    );
+}
+
 /* ─── Props ─── */
 export interface ConfiguratorProps {
     exteriorColor: string;
     interiorColor: string;
-    width: number;
-    height: number;
-    depth: number;
+    width: number;   // mm
+    height: number;  // mm
+    depth: number;   // mm
     columns: number;
     backPanel: boolean;
     columnVariants: ('open' | 'shelves' | 'drawers' | 'door')[];
@@ -293,22 +409,20 @@ export default function ThreeViewer(props: ConfiguratorProps) {
     const W = width / 1000;
     const H = height / 1000;
     const D = depth / 1000;
-    const T = 0.018;
 
     const colW = W / columns;
     const startX = -(W / 2) + colW / 2;
-    const camZ = W * 0.7 + 1.8;
-    const camX = W * 0.25 + 0.3;
 
     return (
         <Canvas
             shadows
-            camera={{ position: [camX, H * 0.55, camZ], fov: 32 }}
+            camera={{ position: [W * 0.28, H * 0.52, W + 2.4], fov: 32 }}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
             style={{ width: '100%', height: '100%' }}
         >
             <SceneSetup />
-            <Room W={W} />
+            <CameraFramer W={W} H={H} />
+            <InfiniteRoom />
 
             {Array.from({ length: columns }).map((_, i) => {
                 const variant = columnVariants[i] ?? 'shelves';
@@ -317,7 +431,7 @@ export default function ThreeViewer(props: ConfiguratorProps) {
                     <group key={i}>
                         <Column
                             x={cx} colW={colW}
-                            H={H} D={D} T={T}
+                            H={H} D={D}
                             extColor={exteriorColor}
                             intColor={interiorColor}
                             backPanel={backPanel}
@@ -333,10 +447,10 @@ export default function ThreeViewer(props: ConfiguratorProps) {
             <HumanSilhouette x={-W / 2} />
 
             <OrbitControls
-                enableDamping dampingFactor={0.06}
+                enableDamping dampingFactor={0.05}
                 minPolarAngle={Math.PI * 0.08}
-                maxPolarAngle={Math.PI * 0.50}
-                minDistance={1} maxDistance={14}
+                maxPolarAngle={Math.PI * 0.48}
+                minDistance={0.8} maxDistance={20}
                 target={[0, H * 0.45, 0]}
                 enablePan={false}
             />
