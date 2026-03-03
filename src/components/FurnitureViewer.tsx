@@ -7,6 +7,7 @@ const ThreeViewer = lazy(() => import('./ThreeViewer'));
 
 /* ─── Colours — from Tylko's palette ─── */
 const COLOURS = [
+    { id: 'birch', hex: '#E8DFC8', label: 'Birch Plywood' },
     { id: 'white', hex: '#F5F1EB', label: 'White' },
     { id: 'sand', hex: '#D4C8A8', label: 'Sand' },
     { id: 'grey', hex: '#9B9B9B', label: 'Grey' },
@@ -109,8 +110,11 @@ export default function FurnitureViewer() {
             while (next.length < columns) next.push('shelves');
             return next.slice(0, columns);
         });
-        // Also auto-adjust width to columns (each column ~90cm default)
-        setWidth(columns * 900);
+        // Width auto-expands when adding columns, shrinks proportionally
+        setWidth(prev => {
+            const perCol = Math.round(prev / Math.max(1, columns - 1 === 0 ? 1 : columns - 1)) || 900;
+            return Math.min(3600, Math.max(450, columns * 900));
+        });
     }, [columns]);
 
     useEffect(() => {
